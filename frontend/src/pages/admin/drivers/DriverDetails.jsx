@@ -556,6 +556,7 @@ export function DriverDetails() {
                       {driverLeaves.map((l) => {
                         const isPending = l.status === 'Under Review' || l.status === 'Pending';
                         const isApproved = l.status === 'Approved';
+                        const isCancelled = l.status === 'Cancelled';
                         return (
                           <tr key={l.id} style={{ borderBottom: '1px solid var(--border-light, #e2e8f0)' }}>
                             <td style={{ padding: '0.625rem 0.875rem', fontFamily: 'monospace', fontWeight: 700, color: '#2C3480' }}>
@@ -568,7 +569,7 @@ export function DriverDetails() {
                               {l.reason}
                             </td>
                             <td style={{ padding: '0.625rem 0.875rem' }}>
-                              <Badge variant={isApproved ? 'success' : isPending ? 'warning' : 'danger'} size="sm">
+                              <Badge variant={isApproved ? 'success' : isPending ? 'warning' : isCancelled ? 'neutral' : 'danger'} size="sm">
                                 {l.status}
                               </Badge>
                             </td>
@@ -582,6 +583,10 @@ export function DriverDetails() {
                                     Reject
                                   </Button>
                                 </div>
+                              ) : isCancelled ? (
+                                <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
+                                  Cancelled
+                                </span>
                               ) : (
                                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isApproved ? '#16a34a' : '#dc2626' }}>
                                   {isApproved ? 'Approved' : 'Declined'}

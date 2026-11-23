@@ -1422,6 +1422,86 @@ export function TripProvider({ children }) {
     toast.success(`Driver leave request ${approved ? 'Approved' : 'Rejected'} successfully!`);
   }, [pushDriverNotification, setDrivers, toast]);
 
+  const cancelDriverLeave = useCallback((leaveId, reason = 'Cancelled by Driver') => {
+    const existing = loadStoredJson(STORAGE_KEYS.DRIVER_LEAVES, null) || initialDriverLeaves;
+    let target = null;
+    const updated = existing.map((l) => {
+      if (l.id === leaveId) {
+        target = {
+          ...l,
+          status: 'Cancelled',
+          cancelledAt: new Date().toISOString(),
+          cancellationReason: reason
+        };
+        return target;
+      }
+      return l;
+    });
+
+    setDriverLeaves(updated);
+    saveStoredJson(STORAGE_KEYS.DRIVER_LEAVES, updated);
+    saveStoredJson('mak_driver_leaves_v7', updated);
+
+    if (target) {
+      let formattedStart = target.startDate;
+      let formattedEnd = target.endDate;
+      try {
+        formattedStart = formatDateDMY(new Date(target.startDate));
+        formattedEnd = formatDateDMY(new Date(target.endDate));
+      } catch (e) {}
+
+      // High-priority notification to Admin Desk
+      pushAdminNotification(
+        `Leave Request Cancelled: ${target.driverName} (${target.driverBadge || target.driverId || 'Driver'})`,
+        `${target.driverName} has cancelled leave application ${target.id} (${formattedStart} to ${formattedEnd}). Standby duty availability has been restored.`,
+        {
+          type: 'leave',
+          category: 'Driver Leave Request',
+          priority: 'High',
+          driverName: target.driverName,
+          driverId: target.driverId,
+          actionUrl: '/admin/attendance?tab=leaves',
+          actionLink: '/admin/attendance?tab=leaves'
+        }
+      );
+
+      // Reconcile duty status for driver if previously On Leave
+      if (target.driverId) {
+        setDrivers((prev) =>
+          prev.map((d) =>
+            (d.id === target.driverId || d.driverId === target.driverId)
+              ? { ...d, dutyStatus: d.dutyStatus === 'On Leave' ? 'Available' : d.dutyStatus, status: d.status === 'On Leave' ? 'Available' : d.status }
+              : d
+          )
+        );
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('mak_driver_leave_updated', { detail: { id: leaveId, status: 'Cancelled' } }));
+    toast.success('Leave request cancelled successfully. Admin has been notified.');
+    return target;
+  }, [pushAdminNotification, setDrivers, toast]);
+
+  const cancelStaffLeave = useCallback((leaveId, staffInfo = {}, reason = 'Cancelled by Staff') => {
+    let formattedStart = staffInfo.startDate || staffInfo.fromDate || '';
+    let formattedEnd = staffInfo.endDate || staffInfo.toDate || formattedStart;
+
+    pushAdminNotification(
+      `Staff Leave Request Cancelled: ${staffInfo.name || staffInfo.employeeName || 'Staff Member'}`,
+      `${staffInfo.name || staffInfo.employeeName || 'Staff Member'} (${staffInfo.code || staffInfo.employeeCode || leaveId}) has cancelled their leave application (${leaveId}) for ${formattedStart} to ${formattedEnd}.`,
+      {
+        type: 'leave',
+        category: 'Staff Leave Request',
+        priority: 'High',
+        actionUrl: '/admin/attendance?tab=leaves',
+        actionLink: '/admin/attendance?tab=leaves'
+      }
+    );
+
+    window.dispatchEvent(new CustomEvent('mak_staff_leave_updated', { detail: { id: leaveId, status: 'Cancelled' } }));
+    toast.success('Staff leave cancelled. Admin has been notified.');
+  }, [pushAdminNotification, toast]);
+
   // Per-booking lookups derived strictly from authoritative stores
   const getBookingExpenses = useCallback((bookingId) => {
     if (!bookingId) return [];
@@ -4400,7 +4480,9 @@ export function TripProvider({ children }) {
     // Driver Planned Leaves
     driverLeaves,
     requestDriverLeave,
-    approveDriverLeave
+    approveDriverLeave,
+    cancelDriverLeave,
+    cancelStaffLeave
   };
 
   return <TripContext.Provider value={value}>{children}</TripContext.Provider>;
@@ -4423,6 +4505,8 @@ export function useTripContext() {
       driverLeaves: [],
       requestDriverLeave: () => {},
       approveDriverLeave: () => {},
+      cancelDriverLeave: () => {},
+      cancelStaffLeave: () => {},
       getBookingExpenses: () => [],
       getBookingPayments: () => [],
       getBookingInvoices: () => [],

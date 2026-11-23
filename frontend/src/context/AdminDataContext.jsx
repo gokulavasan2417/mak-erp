@@ -123,7 +123,9 @@ export function AdminDataProvider({ children }) {
     getBookingInvoices,
     driverLeaves,
     requestDriverLeave,
-    approveDriverLeave
+    approveDriverLeave,
+    cancelDriverLeave,
+    cancelStaffLeave: tripCtxCancelStaffLeave
   } = tripCtx;
 
   // Persisted Admin-only Entities (SECTION 4.2)
@@ -1278,6 +1280,48 @@ export function AdminDataProvider({ children }) {
     return newLeave;
   };
 
+  const cancelStaffLeave = (leaveId, reason = 'Cancelled by Staff') => {
+    let targetLeave = null;
+    setStaffLeaveRequests((prev) =>
+      prev.map((l) => {
+        if (l.id === leaveId) {
+          targetLeave = {
+            ...l,
+            status: 'Cancelled',
+            cancelledAt: new Date().toISOString(),
+            cancellationReason: reason
+          };
+          return targetLeave;
+        }
+        return l;
+      })
+    );
+
+    if (tripCtxCancelStaffLeave && targetLeave) {
+      tripCtxCancelStaffLeave(leaveId, {
+        name: targetLeave.employeeName,
+        code: targetLeave.employeeCode,
+        startDate: targetLeave.fromDate,
+        endDate: targetLeave.toDate
+      }, reason);
+    } else if (tripCtx?.pushAdminNotification && targetLeave) {
+      tripCtx.pushAdminNotification(
+        `Staff Leave Request Cancelled: ${targetLeave.employeeName}`,
+        `${targetLeave.employeeName} (${targetLeave.employeeCode || targetLeave.id}) cancelled leave application (${targetLeave.id}) for ${targetLeave.fromDate} to ${targetLeave.toDate}.`,
+        {
+          type: 'leave',
+          category: 'Staff Leave Request',
+          priority: 'High',
+          actionUrl: '/admin/attendance?tab=leaves',
+          actionLink: '/admin/attendance?tab=leaves'
+        }
+      );
+    }
+
+    toast.info('Staff leave request cancelled.');
+    return targetLeave;
+  };
+
   // --- AUTOMATIC ATTENDANCE-BASED PAYROLL ACTIONS ---
   const calculatePayroll = useCallback(async (month = selectedPayrollMonth, showToast = true) => {
     try {
@@ -1578,11 +1622,13 @@ export function AdminDataProvider({ children }) {
         driverLeaveRequests: driverLeaves || [],
         requestDriverLeave,
         approveDriverLeave,
+        cancelDriverLeave,
         markAttendance,
         bulkMarkAttendance,
         updateAttendanceRecord,
         approveStaffLeave,
         submitStaffLeave,
+        cancelStaffLeave,
 
         // Payroll & Salaries
         payrolls,

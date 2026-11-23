@@ -15,9 +15,10 @@ import { Modal } from '../../components/ui/Modal';
 import { useStaffData } from '../../context/StaffDataContext';
 
 export function StaffLeaves() {
-  const { leaveBalances, leaveRequests, applyForLeave } = useStaffData();
+  const { leaveBalances, leaveRequests, applyForLeave, cancelLeave } = useStaffData();
 
   const [isApplyModalOpen, setIsApplyModalOpen] = useState(false);
+  const [cancelConfirmLeave, setCancelConfirmLeave] = useState(null);
   const [leaveType, setLeaveType] = useState('Casual Leave');
   const [startDate, setStartDate] = useState(new Date().toISOString().substring(0, 10));
   const [endDate, setEndDate] = useState(new Date().toISOString().substring(0, 10));
@@ -45,6 +46,8 @@ export function StaffLeaves() {
         return { bg: '#dcfce7', color: '#15803d', border: '#bbf7d0' };
       case 'Rejected':
         return { bg: '#fee2e2', color: '#b91c1c', border: '#fecaca' };
+      case 'Cancelled':
+        return { bg: '#f1f5f9', color: '#64748b', border: '#e2e8f0' };
       case 'Pending':
       default:
         return { bg: '#fef3c7', color: '#b45309', border: '#fde68a' };
@@ -145,11 +148,15 @@ export function StaffLeaves() {
                 <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>Reason</th>
                 <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>Status</th>
                 <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>Reviewer</th>
+                <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700, textAlign: 'right' }}>Action</th>
               </tr>
             </thead>
             <tbody>
               {leaveRequests.map((req, i) => {
                 const badge = getStatusBadge(req.status);
+                const isCancelled = req.status === 'Cancelled';
+                const isRejected = req.status === 'Rejected';
+
                 return (
                   <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                     <td style={{ padding: '0.85rem 1rem', fontWeight: 700, color: '#2C3480', fontFamily: 'monospace' }}>
@@ -179,6 +186,28 @@ export function StaffLeaves() {
                     <td style={{ padding: '0.85rem 1rem', color: '#64748b', fontSize: '0.8rem' }}>
                       {req.reviewedBy}
                     </td>
+                    <td style={{ padding: '0.85rem 1rem', textAlign: 'right' }}>
+                      {!isCancelled && !isRejected ? (
+                        <Button
+                          size="xs"
+                          variant="outline"
+                          style={{
+                            color: '#dc2626',
+                            borderColor: '#fca5a5',
+                            fontWeight: 700,
+                            fontSize: '0.75rem',
+                            padding: '0.25rem 0.65rem'
+                          }}
+                          onClick={() => setCancelConfirmLeave(req)}
+                        >
+                          Cancel Leave
+                        </Button>
+                      ) : (
+                        <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', fontWeight: 500 }}>
+                          {isCancelled ? 'Cancelled' : '—'}
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 );
               })}
@@ -186,6 +215,59 @@ export function StaffLeaves() {
           </table>
         </CardBody>
       </Card>
+
+      {/* Cancel Leave Confirmation Modal */}
+      {cancelConfirmLeave && (
+        <Modal
+          isOpen={Boolean(cancelConfirmLeave)}
+          onClose={() => setCancelConfirmLeave(null)}
+          title="Cancel Leave Application"
+          subtitle={`Leave Request #${cancelConfirmLeave?.id}`}
+          size="sm"
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', width: '100%' }}>
+              <Button variant="ghost" onClick={() => setCancelConfirmLeave(null)}>
+                Keep Leave
+              </Button>
+              <Button
+                variant="danger"
+                style={{ backgroundColor: '#dc2626', borderColor: '#dc2626', fontWeight: 700 }}
+                onClick={() => {
+                  if (cancelConfirmLeave) {
+                    cancelLeave(cancelConfirmLeave.id);
+                    setCancelConfirmLeave(null);
+                  }
+                }}
+              >
+                Confirm Cancellation
+              </Button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: '#334155', lineHeight: 1.5 }}>
+              Are you sure you want to cancel your leave application for{' '}
+              <strong>
+                {cancelConfirmLeave.startDate} to {cancelConfirmLeave.endDate}
+              </strong>
+              ?
+            </p>
+            <div
+              style={{
+                backgroundColor: '#fff7ed',
+                border: '1px solid #fed7aa',
+                borderRadius: '8px',
+                padding: '0.75rem',
+                fontSize: '0.8125rem',
+                color: '#9a3412',
+                lineHeight: 1.4
+              }}
+            >
+              ⚠ Cancelling this leave will restore your attendance schedule and alert the Management Operations Desk immediately.
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {/* Apply Leave Modal */}
       {isApplyModalOpen && (

@@ -7,6 +7,7 @@ import { payrollService } from '../services/payrollService';
 import { apiClient } from '../services/apiClient';
 import { loadStoredJson, saveStoredJson } from '../utils/storage';
 import { useToast } from './ToastContext';
+import { TripContext } from './TripContext';
 
 export const StaffDataContext = createContext();
 
@@ -63,6 +64,7 @@ const buildStaffProfileFromUser = (u) => {
 export function StaffDataProvider({ children }) {
   const { currentUser, updateUserProfile } = useAuth();
   const toast = useToast();
+  const tripCtx = useContext(TripContext);
 
   const selectedMonth = '2026-11';
 
@@ -376,18 +378,120 @@ export function StaffDataProvider({ children }) {
 
   const applyForLeave = useCallback((newLeave) => {
     const leaveId = `LV-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const empName = profile?.fullName || profile?.name || 'Staff Member';
+    const empCode = profile?.code || profile?.employeeCode || 'EMP-STF';
     const record = {
       ...newLeave,
       id: leaveId,
+      employeeName: empName,
+      employeeCode: empCode,
+      department: profile?.department || 'Operations & Dispatch',
       status: 'Pending',
       appliedAt: 'Just now',
       reviewedBy: 'Pending Admin Review'
     };
 
     setLeaveRequests((prev) => [record, ...prev]);
+
+    // Sync to Admin Leaves storage so admin attendance immediately reflects it
+    try {
+      const adminLeaves = loadStoredJson('mak_admin_leaves_v10_atlas', []) || [];
+      const updatedAdmin = [
+        {
+          id: leaveId,
+          employeeId: profile?.id || empCode,
+          employeeName: empName,
+          employeeCode: empCode,
+          department: profile?.department || 'Operations & Dispatch',
+          leaveType: newLeave.leaveType || 'Casual Leave',
+          fromDate: newLeave.startDate,
+          toDate: newLeave.endDate,
+          totalDays: newLeave.days || 1,
+          reason: newLeave.reason,
+          status: 'Pending',
+          appliedOn: new Date().toISOString().substring(0, 10),
+          reviewedBy: null
+        },
+        ...adminLeaves.filter((l) => l.id !== leaveId)
+      ];
+      saveStoredJson('mak_admin_leaves_v10_atlas', updatedAdmin);
+    } catch (e) {}
+
+    // Dispatch admin notification
+    if (tripCtx?.pushAdminNotification) {
+      tripCtx.pushAdminNotification(
+        `Staff Leave Request: ${empName} (${empCode})`,
+        `${empName} submitted ${newLeave.leaveType || 'leave'} for ${newLeave.startDate} to ${newLeave.endDate} (${newLeave.days || 1} day(s)). Reason: "${newLeave.reason}"`,
+        {
+          type: 'leave',
+          category: 'Staff Leave Request',
+          priority: 'Normal',
+          actionUrl: '/admin/attendance?tab=leaves',
+          actionLink: '/admin/attendance?tab=leaves'
+        }
+      );
+    }
+
     toast.success(`Leave request ${leaveId} submitted for managerial approval!`);
     return record;
-  }, [toast]);
+  }, [profile, tripCtx, toast]);
+
+  const cancelLeave = useCallback((leaveId, reason = 'Cancelled by Staff') => {
+    let target = null;
+    setLeaveRequests((prev) =>
+      prev.map((l) => {
+        if (l.id === leaveId) {
+          target = {
+            ...l,
+            status: 'Cancelled',
+            cancelledAt: new Date().toISOString(),
+            cancellationReason: reason
+          };
+          return target;
+        }
+        return l;
+      })
+    );
+
+    // Update shared admin storage
+    try {
+      const adminLeaves = loadStoredJson('mak_admin_leaves_v10_atlas', null);
+      if (adminLeaves && Array.isArray(adminLeaves)) {
+        const updatedAdmin = adminLeaves.map((l) =>
+          l.id === leaveId ? { ...l, status: 'Cancelled', cancellationReason: reason } : l
+        );
+        saveStoredJson('mak_admin_leaves_v10_atlas', updatedAdmin);
+      }
+    } catch (e) {}
+
+    const empName = profile?.fullName || profile?.name || target?.employeeName || 'Staff Member';
+    const empCode = profile?.code || profile?.employeeCode || target?.employeeCode || 'Staff';
+
+    if (tripCtx?.cancelStaffLeave && target) {
+      tripCtx.cancelStaffLeave(leaveId, {
+        name: empName,
+        code: empCode,
+        startDate: target.startDate || target.fromDate,
+        endDate: target.endDate || target.toDate
+      }, reason);
+    } else if (tripCtx?.pushAdminNotification && target) {
+      tripCtx.pushAdminNotification(
+        `Staff Leave Cancelled: ${empName} (${empCode})`,
+        `${empName} has cancelled leave request ${target.id} (${target.startDate || target.fromDate} to ${target.endDate || target.toDate}).`,
+        {
+          type: 'leave',
+          category: 'Staff Leave Request',
+          priority: 'High',
+          actionUrl: '/admin/attendance?tab=leaves',
+          actionLink: '/admin/attendance?tab=leaves'
+        }
+      );
+    }
+
+    window.dispatchEvent(new CustomEvent('mak_staff_leave_updated', { detail: { id: leaveId, status: 'Cancelled' } }));
+    toast.success(`Leave request ${leaveId} cancelled. Admin has been notified.`);
+    return target;
+  }, [profile, tripCtx, toast]);
 
   // 6. Punch In / Out Handler
   const recordTodayPunch = useCallback((type = 'Punch In') => {
@@ -473,6 +577,7 @@ export function StaffDataProvider({ children }) {
     leaveBalances,
     leaveRequests,
     applyForLeave,
+    cancelLeave,
     recordTodayPunch,
     updateStaffProfile,
     salarySlips

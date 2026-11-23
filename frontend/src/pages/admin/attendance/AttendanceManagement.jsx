@@ -1803,6 +1803,7 @@ export function AttendanceManagement() {
                         (driverLeaveRequests || []).map((leave) => {
                           const isPending = leave.status === 'Under Review' || leave.status === 'Pending';
                           const isApproved = leave.status === 'Approved';
+                          const isCancelled = leave.status === 'Cancelled';
 
                           return (
                             <tr key={leave.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -1822,14 +1823,14 @@ export function AttendanceManagement() {
                               <td style={{ padding: '0.75rem 1rem' }}>
                                 <div style={{ fontWeight: 700, color: '#0f172a' }}>{leave.totalDays || 1} Day(s)</div>
                                 <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                                  {leave.startDate} &rarr; {leave.endDate}
+                                   {leave.startDate} &rarr; {leave.endDate}
                                 </span>
                               </td>
                               <td style={{ padding: '0.75rem 1rem', maxWidth: '240px', color: '#475569', fontSize: '0.8125rem' }}>
                                 {leave.reason || 'Personal Reason'}
                               </td>
                               <td style={{ padding: '0.75rem 1rem' }}>
-                                <Badge variant={isApproved ? 'success' : isPending ? 'warning' : 'danger'} dot size="sm">
+                                <Badge variant={isApproved ? 'success' : isPending ? 'warning' : isCancelled ? 'neutral' : 'danger'} dot size="sm">
                                   {leave.status || 'Under Review'}
                                 </Badge>
                               </td>
@@ -1853,6 +1854,10 @@ export function AttendanceManagement() {
                                       Reject
                                     </Button>
                                   </div>
+                                ) : isCancelled ? (
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
+                                    Cancelled by Driver
+                                  </span>
                                 ) : (
                                   <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isApproved ? '#16a34a' : '#dc2626', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
                                     {isApproved ? <><Check size={14} /> Approved by Admin</> : <><X size={14} /> Rejected</>}
@@ -1903,6 +1908,7 @@ export function AttendanceManagement() {
                         staffLeaveRequests.map((leave) => {
                           const isPending = leave.status === 'Pending';
                           const isApproved = leave.status === 'Approved';
+                          const isCancelled = leave.status === 'Cancelled';
 
                           return (
                             <tr key={leave.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
@@ -1929,7 +1935,7 @@ export function AttendanceManagement() {
                                 {leave.reason}
                               </td>
                               <td style={{ padding: '0.75rem 1rem' }}>
-                                <Badge variant={isApproved ? 'success' : isPending ? 'warning' : 'danger'} size="sm">
+                                <Badge variant={isApproved ? 'success' : isPending ? 'warning' : isCancelled ? 'neutral' : 'danger'} size="sm">
                                   {leave.status}
                                 </Badge>
                               </td>
@@ -1953,6 +1959,10 @@ export function AttendanceManagement() {
                                       Reject
                                     </Button>
                                   </div>
+                                ) : isCancelled ? (
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 600, color: '#64748b' }}>
+                                    Cancelled by Staff
+                                  </span>
                                 ) : (
                                   <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                                     {leave.reviewedBy || 'Admin Desk'}

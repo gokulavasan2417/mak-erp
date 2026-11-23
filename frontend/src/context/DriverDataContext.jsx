@@ -705,6 +705,24 @@ export function DriverDataProvider({ children }) {
     return newLeave;
   };
 
+  const cancelLeave = (leaveId, reason = 'Cancelled by Driver') => {
+    if (tripCtx?.cancelDriverLeave) {
+      const res = tripCtx.cancelDriverLeave(leaveId, reason);
+      if (driver?.dutyStatus === 'On Leave') {
+        setDriver((prev) => ({ ...prev, dutyStatus: 'Available' }));
+      }
+      return res;
+    }
+
+    setLocalLeaveRequests((prev) =>
+      prev.map((l) => (l.id === leaveId ? { ...l, status: 'Cancelled', cancellationReason: reason } : l))
+    );
+    if (driver?.dutyStatus === 'On Leave') {
+      setDriver((prev) => ({ ...prev, dutyStatus: 'Available' }));
+    }
+    toast.success('Leave application cancelled.');
+  };
+
   const markNotificationRead = (notifId) => {
     if (tripCtx) tripCtx.markDriverNotificationRead(notifId);
   };
@@ -809,6 +827,7 @@ export function DriverDataProvider({ children }) {
     updateProfile,
     setDutyStatus,
     requestLeave,
+    cancelLeave,
     markNotificationRead,
     markAllNotificationsRead,
     createSupportTicket,

@@ -27,11 +27,14 @@ export function DriverAvailability() {
     trips = [],
     leaveRequests = [],
     setDutyStatus,
-    requestLeave
+    requestLeave,
+    cancelLeave
   } = useDriverData();
 
   const safeDriver = driver ? { ...initialDriverProfile, ...driver } : initialDriverProfile;
   const safeLeaves = Array.isArray(leaveRequests) ? leaveRequests : [];
+
+  const [cancelConfirmLeave, setCancelConfirmLeave] = useState(null);
 
   // Today's date YYYY-MM-DD
   const todayStr = useMemo(() => {
@@ -538,40 +541,130 @@ export function DriverAvailability() {
                   <th style={{ padding: '0.75rem 1.25rem', color: 'var(--text-muted)' }}>DATES</th>
                   <th style={{ padding: '0.75rem 1.25rem', color: 'var(--text-muted)' }}>REASON</th>
                   <th style={{ padding: '0.75rem 1.25rem', color: 'var(--text-muted)' }}>STATUS</th>
+                  <th style={{ padding: '0.75rem 1.25rem', color: 'var(--text-muted)', textAlign: 'right' }}>ACTION</th>
                 </tr>
               </thead>
               <tbody>
                 {safeLeaves.length === 0 ? (
                   <tr>
-                    <td colSpan={4} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No leave requests filed yet. Click "Request Planned Leave" above to apply.
                     </td>
                   </tr>
                 ) : (
-                  safeLeaves.map((req) => (
-                    <tr key={req.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
-                      <td style={{ padding: '0.875rem 1.25rem', fontFamily: 'monospace', fontWeight: 700, color: '#2C3480' }}>
-                        {req.id}
-                      </td>
-                      <td style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>
-                        {formatDmy(req.startDate)} to {formatDmy(req.endDate)}
-                      </td>
-                      <td style={{ padding: '0.875rem 1.25rem', color: 'var(--text-secondary)' }}>
-                        {req.reason}
-                      </td>
-                      <td style={{ padding: '0.875rem 1.25rem' }}>
-                        <Badge variant={req.status === 'Approved' ? 'success' : req.status === 'Rejected' ? 'danger' : 'warning'} dot size="sm">
-                          {req.status || 'Under Review'}
-                        </Badge>
-                      </td>
-                    </tr>
-                  ))
+                  safeLeaves.map((req) => {
+                    const isApproved = req.status === 'Approved';
+                    const isCancelled = req.status === 'Cancelled';
+                    const isRejected = req.status === 'Rejected';
+                    const isPending = req.status === 'Under Review' || req.status === 'Pending';
+
+                    return (
+                      <tr key={req.id} style={{ borderBottom: '1px solid var(--border-light)' }}>
+                        <td style={{ padding: '0.875rem 1.25rem', fontFamily: 'monospace', fontWeight: 700, color: '#2C3480' }}>
+                          {req.id}
+                        </td>
+                        <td style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>
+                          {formatDmy(req.startDate)} to {formatDmy(req.endDate)}
+                        </td>
+                        <td style={{ padding: '0.875rem 1.25rem', color: 'var(--text-secondary)' }}>
+                          {req.reason}
+                        </td>
+                        <td style={{ padding: '0.875rem 1.25rem' }}>
+                          <Badge
+                            variant={isApproved ? 'success' : isPending ? 'warning' : isCancelled ? 'neutral' : 'danger'}
+                            dot
+                            size="sm"
+                          >
+                            {req.status || 'Under Review'}
+                          </Badge>
+                        </td>
+                        <td style={{ padding: '0.875rem 1.25rem', textAlign: 'right' }}>
+                          {!isCancelled && !isRejected ? (
+                            <Button
+                              size="xs"
+                              variant="outline"
+                              style={{
+                                color: '#dc2626',
+                                borderColor: '#fca5a5',
+                                fontWeight: 700,
+                                fontSize: '0.75rem',
+                                padding: '0.25rem 0.65rem'
+                              }}
+                              onClick={() => setCancelConfirmLeave(req)}
+                            >
+                              Cancel Leave
+                            </Button>
+                          ) : (
+                            <span style={{ fontSize: '0.75rem', color: '#94a3b8', fontStyle: 'italic', fontWeight: 500 }}>
+                              {isCancelled ? 'Cancelled' : '—'}
+                            </span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })
                 )}
               </tbody>
             </table>
           </div>
         </CardBody>
       </Card>
+
+      {/* Cancel Leave Confirmation Modal */}
+      <Modal
+        isOpen={Boolean(cancelConfirmLeave)}
+        onClose={() => setCancelConfirmLeave(null)}
+        title="Cancel Leave Request"
+        subtitle={`Leave Application Ref #${cancelConfirmLeave?.id}`}
+        size="sm"
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', width: '100%' }}>
+            <Button variant="ghost" onClick={() => setCancelConfirmLeave(null)}>
+              Keep Leave
+            </Button>
+            <Button
+              variant="danger"
+              style={{ backgroundColor: '#dc2626', borderColor: '#dc2626', fontWeight: 700 }}
+              onClick={() => {
+                if (cancelConfirmLeave) {
+                  if (cancelLeave) {
+                    cancelLeave(cancelConfirmLeave.id, 'Cancelled by Driver');
+                  }
+                  setCancelConfirmLeave(null);
+                }
+              }}
+            >
+              Confirm Cancellation
+            </Button>
+          </div>
+        }
+      >
+        {cancelConfirmLeave && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <p style={{ margin: 0, fontSize: '0.875rem', color: '#334155', lineHeight: 1.5 }}>
+              Are you sure you want to cancel your leave request for{' '}
+              <strong>
+                {formatDmy(cancelConfirmLeave.startDate)} to {formatDmy(cancelConfirmLeave.endDate)}
+              </strong>
+              ?
+            </p>
+            <div
+              style={{
+                backgroundColor: '#fff7ed',
+                border: '1px solid #fed7aa',
+                borderRadius: '8px',
+                padding: '0.75rem',
+                fontSize: '0.8125rem',
+                color: '#9a3412',
+                lineHeight: 1.4
+              }}
+            >
+              ⚠ Cancelling this leave will restore your roster availability to <strong>Standby / Pool</strong> and notify
+              the Admin Operations Desk immediately.
+            </div>
+          </div>
+        )}
+      </Modal>
 
       {/* Request Leave Modal */}
       <Modal
