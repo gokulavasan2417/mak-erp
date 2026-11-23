@@ -1367,17 +1367,24 @@ export function TripProvider({ children }) {
     return newLeave;
   }, [pushAdminNotification]);
 
-  const approveDriverLeave = useCallback((leaveId, approved = true, remarks = '') => {
+  const approveDriverLeave = useCallback((leaveId, approved = true, remarks = '', options = {}) => {
     const existing = loadStoredJson(STORAGE_KEYS.DRIVER_LEAVES, null) || initialDriverLeaves;
     let target = null;
     const updated = existing.map((l) => {
       if (l.id === leaveId) {
+        const approvedDays = options.approvedDays !== undefined ? options.approvedDays : l.totalDays;
+        const approvedStartDate = options.approvedStartDate || l.startDate;
+        const approvedEndDate = options.approvedEndDate || l.endDate;
+
         target = {
           ...l,
           status: approved ? 'Approved' : 'Rejected',
+          approvedDays: approved ? approvedDays : 0,
+          approvedStartDate: approved ? approvedStartDate : null,
+          approvedEndDate: approved ? approvedEndDate : null,
           reviewedBy: 'Operations Admin',
           reviewedAt: new Date().toISOString().substring(0, 10),
-          adminRemarks: remarks || (approved ? 'Approved by Admin Desk' : 'Declined due to duty coverage')
+          adminRemarks: remarks || (approved ? (approvedDays < l.totalDays ? `Approved for ${approvedDays} Day(s) (${approvedStartDate} to ${approvedEndDate})` : 'Approved by Admin Desk') : 'Declined due to duty coverage')
         };
         return target;
       }
@@ -1389,16 +1396,20 @@ export function TripProvider({ children }) {
     saveStoredJson('mak_driver_leaves_v7', updated);
 
     if (target) {
-      let formattedStart = target.startDate;
-      let formattedEnd = target.endDate;
+      let formattedStart = target.approvedStartDate || target.startDate;
+      let formattedEnd = target.approvedEndDate || target.endDate;
       try {
-        formattedStart = formatDateDMY(new Date(target.startDate));
-        formattedEnd = formatDateDMY(new Date(target.endDate));
+        formattedStart = formatDateDMY(new Date(formattedStart));
+        formattedEnd = formatDateDMY(new Date(formattedEnd));
       } catch (e) {}
+
+      const daysApprovedText = target.approvedDays && target.approvedDays < target.totalDays
+        ? ` (${target.approvedDays} of ${target.totalDays} Days Approved)`
+        : '';
 
       pushDriverNotification(
         `Leave Request ${approved ? 'Approved! ✅' : 'Rejected ❌'}`,
-        `Your planned leave request from ${formattedStart} to ${formattedEnd} has been ${approved ? 'Approved' : 'Rejected'} by Admin Operations.${remarks ? ' Remarks: ' + remarks : ''}`,
+        `Your planned leave request from ${formattedStart} to ${formattedEnd}${daysApprovedText} has been ${approved ? 'Approved' : 'Rejected'} by Admin Operations.${remarks ? ' Remarks: ' + remarks : ''}`,
         {
           type: 'leave',
           category: 'Duty Roster',
@@ -1406,19 +1417,23 @@ export function TripProvider({ children }) {
         }
       );
 
-      // Reconcile duty status for driver if approved
+      // Reconcile duty status for driver if today is within approved leave period
       if (approved && target.driverId) {
-        setDrivers((prev) =>
-          prev.map((d) =>
-            (d.id === target.driverId || d.driverId === target.driverId)
-              ? { ...d, dutyStatus: 'On Leave', status: 'On Leave' }
-              : d
-          )
-        );
+        const today = new Date().toISOString().substring(0, 10);
+        const isOnLeaveToday = today >= (target.approvedStartDate || target.startDate) && today <= (target.approvedEndDate || target.endDate);
+        if (isOnLeaveToday) {
+          setDrivers((prev) =>
+            prev.map((d) =>
+              (d.id === target.driverId || d.driverId === target.driverId)
+                ? { ...d, dutyStatus: 'On Leave', status: 'On Leave' }
+                : d
+            )
+          );
+        }
       }
     }
 
-    window.dispatchEvent(new CustomEvent('mak_driver_leave_updated', { detail: { id: leaveId, status: approved ? 'Approved' : 'Rejected' } }));
+    window.dispatchEvent(new CustomEvent('mak_driver_leave_updated', { detail: { id: leaveId, status: approved ? 'Approved' : 'Rejected', target } }));
     toast.success(`Driver leave request ${approved ? 'Approved' : 'Rejected'} successfully!`);
   }, [pushDriverNotification, setDrivers, toast]);
 
@@ -1520,8 +1535,21 @@ export function TripProvider({ children }) {
 
   // Availability helpers
   const isDriverAvailable = useCallback((driverId, start, end, excludeBookingId = null) => {
+    // Check approved planned leaves for this driver
+    const s = normalizeDate(start);
+    const e = normalizeDate(end || start);
+    const hasLeave = (driverLeaves || []).some((l) => {
+      if (l.driverId !== driverId && l.driverBadge !== driverId) return false;
+      if (l.status !== 'Approved') return false;
+      const lStart = normalizeDate(l.approvedStartDate || l.startDate);
+      const lEnd = normalizeDate(l.approvedEndDate || l.endDate || l.approvedStartDate || l.startDate);
+      return datesOverlap(s, e, lStart, lEnd);
+    });
+    if (hasLeave) {
+      return { available: false, reason: 'Driver has approved planned leave for the requested journey dates.' };
+    }
     return checkDriverAvailability(driverId, start, end, drivers, assignments, bookings, excludeBookingId);
-  }, [drivers, assignments, bookings]);
+  }, [driverLeaves, drivers, assignments, bookings]);
 
   const isVehicleAvailable = useCallback((vehicleId, start, end, excludeBookingId = null) => {
     return checkVehicleAvailability(vehicleId, start, end, vehicles, bookings, excludeBookingId);

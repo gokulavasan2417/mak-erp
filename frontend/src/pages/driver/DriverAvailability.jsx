@@ -73,6 +73,30 @@ export function DriverAvailability() {
     return `${day}-${month}-${year}`;
   };
 
+  const addDaysToDateStr = (dateStr, daysToAdd) => {
+    try {
+      const d = new Date(dateStr);
+      d.setDate(d.getDate() + daysToAdd);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const requestedDaysCount = useMemo(() => {
+    try {
+      const s = new Date(leaveStart);
+      const e = new Date(leaveEnd);
+      const diff = Math.abs(e - s);
+      return Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)) + 1);
+    } catch {
+      return 1;
+    }
+  }, [leaveStart, leaveEnd]);
+
   // Normalize any date string to YYYY-MM-DD for reliable comparison
   const normalizeDateStr = (dateVal) => {
     if (!dateVal) return '';
@@ -96,7 +120,7 @@ export function DriverAvailability() {
     return String(dateVal);
   };
 
-  // 14 days schedule matrix for November 2026
+  // Schedule matrix for November 2026 (Nov 15 to Nov 30)
   const scheduleDays = useMemo(() => [
     { day: '15 Sun', date: '2026-11-15' },
     { day: '16 Mon', date: '2026-11-16' },
@@ -111,7 +135,9 @@ export function DriverAvailability() {
     { day: '25 Wed', date: '2026-11-25' },
     { day: '26 Thu', date: '2026-11-26' },
     { day: '27 Fri', date: '2026-11-27' },
-    { day: '28 Sat', date: '2026-11-28' }
+    { day: '28 Sat', date: '2026-11-28' },
+    { day: '29 Sun', date: '2026-11-29' },
+    { day: '30 Mon', date: '2026-11-30' }
   ], []);
 
   // Evaluated status according to specification:
@@ -121,6 +147,7 @@ export function DriverAvailability() {
   // - Current date with no trip: AVAILABLE (Green)
   // - Future date with no assignment: AVAILABLE (Green)
   // - Future date with assigned trip: SCHEDULED (Blue)
+  // - Leave applied / under review: LEAVE APPLIED (Amber)
   // - Approved leave: ON LEAVE (Orange)
   const dynamicScheduleDays = useMemo(() => {
     return scheduleDays.map((item) => {
@@ -129,20 +156,25 @@ export function DriverAvailability() {
       const isToday = itemDate === todayStr;
       const isFuture = itemDate > todayStr;
 
-      // Condition 7: Approved leave -> ON LEAVE (Orange)
+      // Check for matching leave (Approved takes precedence, then Under Review/Pending)
       const matchedLeave = safeLeaves.find((l) => {
-        const start = normalizeDateStr(l.startDate);
-        const end = normalizeDateStr(l.endDate) || start;
-        const isApproved = l.status === 'Approved';
-        return isApproved && itemDate >= start && itemDate <= end;
+        if (l.status === 'Cancelled' || l.status === 'Rejected') return false;
+        const start = normalizeDateStr(l.status === 'Approved' && l.approvedStartDate ? l.approvedStartDate : l.startDate);
+        const end = normalizeDateStr(l.status === 'Approved' && l.approvedEndDate ? l.approvedEndDate : (l.endDate || l.startDate));
+        return itemDate >= start && itemDate <= end;
       });
 
       if (matchedLeave) {
+        const isApproved = matchedLeave.status === 'Approved';
         return {
           ...item,
-          status: 'ON LEAVE',
+          status: isApproved ? 'ON LEAVE' : 'LEAVE APPLIED',
           tripId: null,
-          info: matchedLeave.reason || 'Approved Planned Leave'
+          info: isApproved
+            ? (matchedLeave.approvedDays && matchedLeave.approvedDays < matchedLeave.totalDays
+                ? `Approved (${matchedLeave.approvedDays}d): ${matchedLeave.reason || 'Planned Leave'}`
+                : (matchedLeave.reason || 'Approved Planned Leave'))
+            : 'Leave Applied (Under Review)'
         };
       }
 
@@ -321,6 +353,16 @@ export function DriverAvailability() {
           badgeBg: '#dbeafe',
           badgeText: '#1e40af'
         };
+      case 'LEAVE APPLIED':
+      case 'LEAVE PENDING':
+      case 'UNDER REVIEW':
+        return {
+          bg: '#fffbeb',
+          text: '#b45309',
+          border: '#fde68a',
+          badgeBg: '#fef3c7',
+          badgeText: '#92400e'
+        };
       case 'ON LEAVE':
         return {
           bg: '#fff7ed',
@@ -463,6 +505,11 @@ export function DriverAvailability() {
               <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>(Future assigned trip)</span>
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+              <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: '#f59e0b' }} />
+              <span style={{ fontWeight: 700, color: '#b45309' }}>LEAVE APPLIED</span>
+              <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>(Pending review)</span>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
               <span style={{ width: '9px', height: '9px', borderRadius: '50%', backgroundColor: '#f97316' }} />
               <span style={{ fontWeight: 700, color: '#c2410c' }}>ON LEAVE</span>
               <span style={{ color: '#94a3b8', fontSize: '0.7rem' }}>(Approved leave)</span>
@@ -564,7 +611,12 @@ export function DriverAvailability() {
                           {req.id}
                         </td>
                         <td style={{ padding: '0.875rem 1.25rem', fontWeight: 600 }}>
-                          {formatDmy(req.startDate)} to {formatDmy(req.endDate)}
+                          <div>{formatDmy(req.startDate)} to {formatDmy(req.endDate)}</div>
+                          {isApproved && req.approvedDays && req.approvedDays < req.totalDays && (
+                            <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700, display: 'block', marginTop: '0.15rem' }}>
+                              ✓ Approved: {formatDmy(req.approvedStartDate || req.startDate)} to {formatDmy(req.approvedEndDate || req.endDate)} ({req.approvedDays}d)
+                            </span>
+                          )}
                         </td>
                         <td style={{ padding: '0.875rem 1.25rem', color: 'var(--text-secondary)' }}>
                           {req.reason}
@@ -575,7 +627,9 @@ export function DriverAvailability() {
                             dot
                             size="sm"
                           >
-                            {req.status || 'Under Review'}
+                            {isApproved && req.approvedDays && req.approvedDays < req.totalDays
+                              ? `Approved (${req.approvedDays} of ${req.totalDays}d)`
+                              : (req.status || 'Under Review')}
                           </Badge>
                         </td>
                         <td style={{ padding: '0.875rem 1.25rem', textAlign: 'right' }}>
@@ -683,6 +737,63 @@ export function DriverAvailability() {
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* Quick Duration Buttons */}
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem', backgroundColor: '#f8fafc', padding: '0.65rem 0.85rem', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+            <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#334155' }}>
+              Select Leave Days:
+            </span>
+            <div style={{ display: 'flex', gap: '0.4rem' }}>
+              <button
+                type="button"
+                onClick={() => setLeaveEnd(leaveStart)}
+                style={{
+                  padding: '0.3rem 0.75rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  border: requestedDaysCount === 1 ? '1px solid #2C3480' : '1px solid #cbd5e1',
+                  backgroundColor: requestedDaysCount === 1 ? '#2C3480' : '#ffffff',
+                  color: requestedDaysCount === 1 ? '#ffffff' : '#334155',
+                  cursor: 'pointer'
+                }}
+              >
+                1 Day
+              </button>
+              <button
+                type="button"
+                onClick={() => setLeaveEnd(addDaysToDateStr(leaveStart, 1))}
+                style={{
+                  padding: '0.3rem 0.75rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  border: requestedDaysCount === 2 ? '1px solid #2C3480' : '1px solid #cbd5e1',
+                  backgroundColor: requestedDaysCount === 2 ? '#2C3480' : '#ffffff',
+                  color: requestedDaysCount === 2 ? '#ffffff' : '#334155',
+                  cursor: 'pointer'
+                }}
+              >
+                2 Days
+              </button>
+              <button
+                type="button"
+                onClick={() => setLeaveEnd(addDaysToDateStr(leaveStart, 2))}
+                style={{
+                  padding: '0.3rem 0.75rem',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  borderRadius: '6px',
+                  border: requestedDaysCount === 3 ? '1px solid #2C3480' : '1px solid #cbd5e1',
+                  backgroundColor: requestedDaysCount === 3 ? '#2C3480' : '#ffffff',
+                  color: requestedDaysCount === 3 ? '#ffffff' : '#334155',
+                  cursor: 'pointer'
+                }}
+              >
+                3 Days
+              </button>
+            </div>
+          </div>
+
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
@@ -715,6 +826,13 @@ export function DriverAvailability() {
             </div>
           </div>
 
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f1f5f9', padding: '0.5rem 0.75rem', borderRadius: '6px', fontSize: '0.8125rem' }}>
+            <span style={{ color: '#64748b' }}>Calculated Leave Duration:</span>
+            <span style={{ fontWeight: 800, color: '#2C3480' }}>
+              {requestedDaysCount} Day{requestedDaysCount > 1 ? 's' : ''} ({formatDmy(leaveStart)} to {formatDmy(leaveEnd)})
+            </span>
+          </div>
+
           <div>
             <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
               Reason for Leave *
@@ -728,8 +846,8 @@ export function DriverAvailability() {
             />
           </div>
 
-          <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '0.75rem', fontSize: '0.75rem', color: '#1e40af' }}>
-            ℹ Notice: Leave requests must be filed at least 72 hours prior to scheduled dates to ensure relief driver dispatch.
+          <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '0.75rem', fontSize: '0.75rem', color: '#1e40af', lineHeight: 1.5 }}>
+            ℹ <strong>Flexible Leave Request:</strong> Leave can be applied for 1, 2, 3 or more days without any mandatory 72-hour lock. Admin Operations will review your application and can approve full or partial days based on relief roster coverage.
           </div>
         </div>
       </Modal>

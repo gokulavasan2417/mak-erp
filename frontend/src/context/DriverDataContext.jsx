@@ -673,12 +673,23 @@ export function DriverDataProvider({ children }) {
   };
 
   const requestLeave = (leaveData) => {
+    let calcDays = 1;
+    try {
+      const s = new Date(leaveData.startDate);
+      const e = new Date(leaveData.endDate);
+      const diff = Math.abs(e - s);
+      calcDays = Math.max(1, Math.round(diff / (1000 * 60 * 60 * 24)) + 1);
+    } catch {
+      calcDays = 1;
+    }
+
     if (tripCtx?.requestDriverLeave) {
       const res = tripCtx.requestDriverLeave({
         driverId: authDriverId,
         driverName: driver?.name || driver?.fullName || 'Murugan S',
         driverBadge: authDriverId || 'DRV-001',
         role: 'Senior Tour Driver',
+        totalDays: calcDays,
         ...leaveData
       });
       toast.success('Leave application submitted for Admin approval.');
@@ -695,7 +706,7 @@ export function DriverDataProvider({ children }) {
       leaveType: 'Planned Leave',
       startDate: leaveData.startDate,
       endDate: leaveData.endDate,
-      totalDays: 2,
+      totalDays: calcDays,
       reason: leaveData.reason,
       status: 'Under Review',
       appliedOn: new Date().toISOString().substring(0, 10)

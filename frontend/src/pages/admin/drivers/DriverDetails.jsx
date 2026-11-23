@@ -563,23 +563,67 @@ export function DriverDetails() {
                               {l.id}
                             </td>
                             <td style={{ padding: '0.625rem 0.875rem', fontWeight: 600 }}>
-                              {l.startDate} to {l.endDate} ({l.totalDays || 1}d)
+                              <div>{l.startDate} to {l.endDate} ({l.totalDays || 1}d)</div>
+                              {isApproved && l.approvedDays && l.approvedDays < l.totalDays && (
+                                <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700, display: 'block', marginTop: '0.15rem' }}>
+                                  ✓ Approved: {l.approvedStartDate} to {l.approvedEndDate} ({l.approvedDays}d)
+                                </span>
+                              )}
                             </td>
                             <td style={{ padding: '0.625rem 0.875rem', color: '#475569' }}>
                               {l.reason}
                             </td>
                             <td style={{ padding: '0.625rem 0.875rem' }}>
                               <Badge variant={isApproved ? 'success' : isPending ? 'warning' : isCancelled ? 'neutral' : 'danger'} size="sm">
-                                {l.status}
+                                {isApproved && l.approvedDays && l.approvedDays < l.totalDays
+                                  ? `Approved (${l.approvedDays} of ${l.totalDays}d)`
+                                  : l.status}
                               </Badge>
                             </td>
                             <td style={{ padding: '0.625rem 0.875rem', textAlign: 'right' }}>
                               {isPending ? (
-                                <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
+                                <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
                                   <Button size="xs" variant="primary" style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', fontWeight: 800 }} onClick={() => approveDriverLeave(l.id, true)}>
-                                    Approve
+                                    Approve All ({l.totalDays || 1}d)
                                   </Button>
-                                  <Button size="xs" variant="outline" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => approveDriverLeave(l.id, false)}>
+                                  {(l.totalDays || 1) >= 2 && (
+                                    <Button
+                                      size="xs"
+                                      variant="outline"
+                                      style={{ color: '#15803d', borderColor: '#86efac', fontWeight: 700 }}
+                                      onClick={() => {
+                                        approveDriverLeave(l.id, true, 'Approved for 1 Day by Operations Lead', {
+                                          approvedDays: 1,
+                                          approvedStartDate: l.startDate,
+                                          approvedEndDate: l.startDate
+                                        });
+                                      }}
+                                    >
+                                      Approve 1d
+                                    </Button>
+                                  )}
+                                  {(l.totalDays || 1) >= 3 && (
+                                    <Button
+                                      size="xs"
+                                      variant="outline"
+                                      style={{ color: '#15803d', borderColor: '#86efac', fontWeight: 700 }}
+                                      onClick={() => {
+                                        const d = new Date(l.startDate);
+                                        d.setDate(d.getDate() + 1);
+                                        const y = d.getFullYear();
+                                        const m = String(d.getMonth() + 1).padStart(2, '0');
+                                        const day = String(d.getDate()).padStart(2, '0');
+                                        approveDriverLeave(l.id, true, 'Approved for 2 Days by Operations Lead', {
+                                          approvedDays: 2,
+                                          approvedStartDate: l.startDate,
+                                          approvedEndDate: `${y}-${m}-${day}`
+                                        });
+                                      }}
+                                    >
+                                      Approve 2d
+                                    </Button>
+                                  )}
+                                  <Button size="xs" variant="outline" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => approveDriverLeave(l.id, false, 'Declined due to duty assignment schedule')}>
                                     Reject
                                   </Button>
                                 </div>
@@ -589,7 +633,11 @@ export function DriverDetails() {
                                 </span>
                               ) : (
                                 <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isApproved ? '#16a34a' : '#dc2626' }}>
-                                  {isApproved ? 'Approved' : 'Declined'}
+                                  {isApproved
+                                    ? (l.approvedDays && l.approvedDays < l.totalDays
+                                        ? `Approved (${l.approvedDays} of ${l.totalDays}d)`
+                                        : 'Approved')
+                                    : 'Declined'}
                                 </span>
                               )}
                             </td>

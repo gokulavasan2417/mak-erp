@@ -101,6 +101,42 @@ export function AttendanceManagement() {
   const [leaveTotalDays, setLeaveTotalDays] = useState(1);
   const [leaveReason, setLeaveReason] = useState('');
 
+  // Driver Leave Review & Approval Modal (decide 1, 2, or 3 days)
+  const [approvingDriverLeave, setApprovingDriverLeave] = useState(null);
+  const [approveDurationDays, setApproveDurationDays] = useState(1);
+  const [approveCustomStart, setApproveCustomStart] = useState('');
+  const [approveCustomEnd, setApproveCustomEnd] = useState('');
+  const [approveRemarks, setApproveRemarks] = useState('');
+
+  const handleOpenApproveDriverLeave = (leave) => {
+    setApprovingDriverLeave(leave);
+    setApproveDurationDays(leave.totalDays || 1);
+    setApproveCustomStart(leave.startDate);
+    setApproveCustomEnd(leave.endDate);
+    setApproveRemarks('Approved by Operations Admin');
+  };
+
+  const handleConfirmApproveDriverLeave = () => {
+    if (!approvingDriverLeave) return;
+    const leave = approvingDriverLeave;
+    let finalStart = approveCustomStart || leave.startDate;
+    let finalEnd = approveCustomEnd || leave.endDate;
+
+    let days = approveDurationDays;
+    try {
+      const s = new Date(finalStart);
+      const e = new Date(finalEnd);
+      days = Math.max(1, Math.round(Math.abs(e - s) / (1000 * 60 * 60 * 24)) + 1);
+    } catch {}
+
+    approveDriverLeave(leave.id, true, approveRemarks || `Approved for ${days} Day(s)`, {
+      approvedDays: days,
+      approvedStartDate: finalStart,
+      approvedEndDate: finalEnd
+    });
+    setApprovingDriverLeave(null);
+  };
+
   // Bulk Clock-In Confirmation Modal
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
 
@@ -1825,13 +1861,20 @@ export function AttendanceManagement() {
                                 <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
                                    {leave.startDate} &rarr; {leave.endDate}
                                 </span>
+                                {isApproved && leave.approvedDays && leave.approvedDays < leave.totalDays && (
+                                  <span style={{ fontSize: '0.75rem', color: '#16a34a', fontWeight: 700, display: 'block', marginTop: '0.15rem' }}>
+                                    ✓ Approved: {leave.approvedStartDate} to {leave.approvedEndDate} ({leave.approvedDays}d)
+                                  </span>
+                                )}
                               </td>
                               <td style={{ padding: '0.75rem 1rem', maxWidth: '240px', color: '#475569', fontSize: '0.8125rem' }}>
                                 {leave.reason || 'Personal Reason'}
                               </td>
                               <td style={{ padding: '0.75rem 1rem' }}>
                                 <Badge variant={isApproved ? 'success' : isPending ? 'warning' : isCancelled ? 'neutral' : 'danger'} dot size="sm">
-                                  {leave.status || 'Under Review'}
+                                  {isApproved && leave.approvedDays && leave.approvedDays < leave.totalDays
+                                    ? `Approved (${leave.approvedDays} of ${leave.totalDays}d)`
+                                    : (leave.status || 'Under Review')}
                                 </Badge>
                               </td>
                               <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
@@ -1841,9 +1884,9 @@ export function AttendanceManagement() {
                                       variant="primary"
                                       size="xs"
                                       style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', fontWeight: 800 }}
-                                      onClick={() => approveDriverLeave(leave.id, true, 'Approved by Operations Admin')}
+                                      onClick={() => handleOpenApproveDriverLeave(leave)}
                                     >
-                                      Approve
+                                      Approve {leave.totalDays > 1 ? `(1-${leave.totalDays}d)` : ''}
                                     </Button>
                                     <Button
                                       variant="outline"
@@ -1860,7 +1903,16 @@ export function AttendanceManagement() {
                                   </span>
                                 ) : (
                                   <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isApproved ? '#16a34a' : '#dc2626', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
-                                    {isApproved ? <><Check size={14} /> Approved by Admin</> : <><X size={14} /> Rejected</>}
+                                    {isApproved ? (
+                                      <>
+                                        <Check size={14} />{' '}
+                                        {leave.approvedDays && leave.approvedDays < leave.totalDays
+                                          ? `Approved (${leave.approvedDays} of ${leave.totalDays} Days)`
+                                          : 'Approved by Admin'}
+                                      </>
+                                    ) : (
+                                      <><X size={14} /> Rejected</>
+                                    )}
                                   </span>
                                 )}
                               </td>
@@ -2358,6 +2410,239 @@ export function AttendanceManagement() {
               ✓ Default punch time: 09:15 AM<br />
               ✓ Default terminal: HQ Chennai Biometric T1<br />
               ✓ Leaves already authorized will not be overwritten.
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {/* ========================================================
+          MODAL 4: DRIVER LEAVE APPROVAL & DURATION DECISION
+          ======================================================== */}
+      {approvingDriverLeave && (
+        <Modal
+          isOpen={Boolean(approvingDriverLeave)}
+          onClose={() => setApprovingDriverLeave(null)}
+          title="Approve Driver Leave Application"
+          subtitle={`Ref #${approvingDriverLeave.id} • ${approvingDriverLeave.driverName || 'Driver'} (#${approvingDriverLeave.driverBadge || approvingDriverLeave.driverId || 'DRV-001'})`}
+          size="md"
+          footer={
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', width: '100%' }}>
+              <Button variant="ghost" onClick={() => setApprovingDriverLeave(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="outline"
+                style={{ color: '#dc2626', borderColor: '#fca5a5' }}
+                onClick={() => {
+                  approveDriverLeave(approvingDriverLeave.id, false, approveRemarks || 'Declined due to duty assignment schedule');
+                  setApprovingDriverLeave(null);
+                }}
+              >
+                Reject Request
+              </Button>
+              <Button
+                variant="primary"
+                style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', fontWeight: 800 }}
+                onClick={handleConfirmApproveDriverLeave}
+              >
+                Confirm Approval ({approveDurationDays} Day{approveDurationDays > 1 ? 's' : ''})
+              </Button>
+            </div>
+          }
+        >
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            {/* Request Summary Box */}
+            <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 700, color: '#64748b' }}>
+                  Driver Planned Leave Request
+                </span>
+                <span style={{ fontSize: '0.8125rem', fontWeight: 800, color: '#2C3480' }}>
+                  {approvingDriverLeave.totalDays} Total Day(s) Requested
+                </span>
+              </div>
+              <div style={{ fontSize: '0.9375rem', fontWeight: 700, color: '#0f172a' }}>
+                {approvingDriverLeave.startDate} &rarr; {approvingDriverLeave.endDate}
+              </div>
+              <div style={{ fontSize: '0.8125rem', color: '#475569', fontStyle: 'italic' }}>
+                Reason: "{approvingDriverLeave.reason || 'Personal Reason'}"
+              </div>
+            </div>
+
+            {/* Decision on Days: 1, 2, 3, or All Days */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: '#0f172a', marginBottom: '0.5rem' }}>
+                Admin Decision: How many days to approve?
+              </label>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '0.625rem' }}>
+                {/* Option: Full Requested */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApproveDurationDays(approvingDriverLeave.totalDays);
+                    setApproveCustomStart(approvingDriverLeave.startDate);
+                    setApproveCustomEnd(approvingDriverLeave.endDate);
+                  }}
+                  style={{
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: '8px',
+                    border: approveDurationDays === approvingDriverLeave.totalDays ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                    backgroundColor: approveDurationDays === approvingDriverLeave.totalDays ? '#f0fdf4' : '#ffffff',
+                    color: approveDurationDays === approvingDriverLeave.totalDays ? '#15803d' : '#334155',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: '0.8125rem'
+                  }}
+                >
+                  All {approvingDriverLeave.totalDays} Days
+                  <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 500, color: '#64748b', marginTop: '2px' }}>
+                    Full requested span
+                  </span>
+                </button>
+
+                {/* Option: 1 Day */}
+                <button
+                  type="button"
+                  onClick={() => {
+                    setApproveDurationDays(1);
+                    setApproveCustomStart(approvingDriverLeave.startDate);
+                    setApproveCustomEnd(approvingDriverLeave.startDate);
+                  }}
+                  style={{
+                    padding: '0.65rem 0.75rem',
+                    borderRadius: '8px',
+                    border: approveDurationDays === 1 && approveCustomEnd === approveCustomStart ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                    backgroundColor: approveDurationDays === 1 && approveCustomEnd === approveCustomStart ? '#f0fdf4' : '#ffffff',
+                    color: approveDurationDays === 1 && approveCustomEnd === approveCustomStart ? '#15803d' : '#334155',
+                    textAlign: 'center',
+                    cursor: 'pointer',
+                    fontWeight: 700,
+                    fontSize: '0.8125rem'
+                  }}
+                >
+                  Approve 1 Day
+                  <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 500, color: '#64748b', marginTop: '2px' }}>
+                    {approvingDriverLeave.startDate} only
+                  </span>
+                </button>
+
+                {/* Option: 2 Days (if totalDays >= 2) */}
+                {approvingDriverLeave.totalDays >= 2 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setApproveDurationDays(2);
+                      setApproveCustomStart(approvingDriverLeave.startDate);
+                      const d = new Date(approvingDriverLeave.startDate);
+                      d.setDate(d.getDate() + 1);
+                      const y = d.getFullYear();
+                      const m = String(d.getMonth() + 1).padStart(2, '0');
+                      const day = String(d.getDate()).padStart(2, '0');
+                      setApproveCustomEnd(`${y}-${m}-${day}`);
+                    }}
+                    style={{
+                      padding: '0.65rem 0.75rem',
+                      borderRadius: '8px',
+                      border: approveDurationDays === 2 ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                      backgroundColor: approveDurationDays === 2 ? '#f0fdf4' : '#ffffff',
+                      color: approveDurationDays === 2 ? '#15803d' : '#334155',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      fontSize: '0.8125rem'
+                    }}
+                  >
+                    Approve 2 Days
+                    <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 500, color: '#64748b', marginTop: '2px' }}>
+                      First 2 days of leave
+                    </span>
+                  </button>
+                )}
+
+                {/* Option: 3 Days (if totalDays >= 3) */}
+                {approvingDriverLeave.totalDays >= 3 && (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setApproveDurationDays(3);
+                      setApproveCustomStart(approvingDriverLeave.startDate);
+                      const d = new Date(approvingDriverLeave.startDate);
+                      d.setDate(d.getDate() + 2);
+                      const y = d.getFullYear();
+                      const m = String(d.getMonth() + 1).padStart(2, '0');
+                      const day = String(d.getDate()).padStart(2, '0');
+                      setApproveCustomEnd(`${y}-${m}-${day}`);
+                    }}
+                    style={{
+                      padding: '0.65rem 0.75rem',
+                      borderRadius: '8px',
+                      border: approveDurationDays === 3 ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                      backgroundColor: approveDurationDays === 3 ? '#f0fdf4' : '#ffffff',
+                      color: approveDurationDays === 3 ? '#15803d' : '#334155',
+                      textAlign: 'center',
+                      cursor: 'pointer',
+                      fontWeight: 700,
+                      fontSize: '0.8125rem'
+                    }}
+                  >
+                    Approve 3 Days
+                    <span style={{ display: 'block', fontSize: '0.7rem', fontWeight: 500, color: '#64748b', marginTop: '2px' }}>
+                      First 3 days of leave
+                    </span>
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {/* Approved Dates Range */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                  Approved From *
+                </label>
+                <input
+                  type="date"
+                  value={approveCustomStart}
+                  min={approvingDriverLeave.startDate}
+                  max={approvingDriverLeave.endDate}
+                  onChange={(e) => setApproveCustomStart(e.target.value)}
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem' }}
+                />
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                  Approved To *
+                </label>
+                <input
+                  type="date"
+                  value={approveCustomEnd}
+                  min={approveCustomStart || approvingDriverLeave.startDate}
+                  max={approvingDriverLeave.endDate}
+                  onChange={(e) => setApproveCustomEnd(e.target.value)}
+                  style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem' }}
+                />
+              </div>
+            </div>
+
+            {/* Remarks */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
+                Admin Remarks (Optional)
+              </label>
+              <input
+                type="text"
+                placeholder="e.g. Approved 1 day due to peak weekend duty coverage"
+                value={approveRemarks}
+                onChange={(e) => setApproveRemarks(e.target.value)}
+                style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem' }}
+              />
+            </div>
+
+            <div style={{ backgroundColor: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px', padding: '0.75rem', fontSize: '0.75rem', color: '#1e40af', lineHeight: 1.5 }}>
+              ℹ <strong>Roster Notice:</strong> Approving {approveDurationDays} day(s) will update the driver's duty availability to <strong>ON LEAVE</strong> for {approveCustomStart} to {approveCustomEnd}. Any remaining unapproved days automatically revert to <strong>AVAILABLE</strong> in the standby pool.
             </div>
           </div>
         </Modal>
