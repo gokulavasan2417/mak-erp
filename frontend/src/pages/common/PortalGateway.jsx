@@ -37,6 +37,7 @@ export function PortalGateway() {
       accentColor: '#2C3480',
       badge: 'Tier 1 Access',
       badgeVariant: 'primary',
+      hidden: true,
       keyRoutes: ['/super-admin/users', '/super-admin/roles', '/super-admin/audit-logs']
     },
     {
@@ -132,7 +133,7 @@ export function PortalGateway() {
           gap: '1.5rem'
         }}
       >
-        {portals.map((p) => {
+        {portals.filter((p) => !p.hidden).map((p) => {
           const Icon = p.icon;
           return (
             <Card key={p.id} style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

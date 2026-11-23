@@ -6,7 +6,6 @@ export function AuthLayout({ children, portalName = 'ERP Portal' }) {
   const location = useLocation();
 
   const portalLinks = [
-    { to: '/super-admin/login', label: 'Super Admin' },
     { to: '/admin/login', label: 'Admin' },
     { to: '/driver/login', label: 'Driver' },
     { to: '/vendor/login', label: 'Vendor' },

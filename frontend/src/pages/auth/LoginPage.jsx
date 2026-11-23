@@ -17,12 +17,14 @@ import './LoginPage.css';
 
 const portalsConfig = [
   { id: 'company_admin', title: 'Company Admin', icon: Building2, defaultEmail: 'admin@maktours.com', defaultPass: 'admin123' },
-  { id: 'super_admin', title: 'Super Admin', icon: Shield, defaultEmail: 'superadmin@maktours.com', defaultPass: 'super123' },
+  { id: 'super_admin', title: 'Super Admin', icon: Shield, defaultEmail: 'superadmin@maktours.com', defaultPass: 'super123', hidden: true },
   { id: 'accountant', title: 'Accountant', icon: Calculator, defaultEmail: 'finance@maktours.com', defaultPass: 'finance123' },
   { id: 'driver', title: 'Driver', icon: Car, defaultEmail: 'driver@maktours.com', defaultPass: 'driver123' },
   { id: 'vendor', title: 'Vendor', icon: Truck, defaultEmail: 'vendor@apexfleet.in', defaultPass: 'vendor123' },
   { id: 'employee', title: 'Staff', icon: UserCheck, defaultEmail: 'staff@maktours.com', defaultPass: 'staff123' }
 ];
+
+const visiblePortals = portalsConfig.filter((p) => !p.hidden);
 
 export const LoginPage = ({ initialRole = null, initialMode = 'signin' }) => {
   const location = useLocation();
@@ -281,7 +283,7 @@ export const LoginPage = ({ initialRole = null, initialMode = 'signin' }) => {
 
             {/* Role picker pills - all roles available and synchronized */}
             <div className="login-role-pills">
-              {portalsConfig.map((p) => {
+              {visiblePortals.map((p) => {
                 const isSelected = signUpRole === p.id;
                 const Icon = p.icon;
                 return (
@@ -523,7 +525,7 @@ export const LoginPage = ({ initialRole = null, initialMode = 'signin' }) => {
 
             {/* Role picker chips matching the exact user image */}
             <div className="login-role-pills">
-              {portalsConfig.map((p) => {
+              {visiblePortals.map((p) => {
                 const isSelected = signInPortal === p.id;
                 const Icon = p.icon;
                 return (
