@@ -420,9 +420,6 @@ export function CustomerList() {
                     </span>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                      <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#d97706', display: 'flex', alignItems: 'center', gap: '0.2rem' }}>
-                        ★ {cust.rating}
-                      </span>
                       <StatusBadge status={cust.status} />
                     </div>
                   </div>

@@ -207,7 +207,7 @@ export function CustomerDetails() {
               <StatusBadge status={customer.status} />
             </div>
             <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0.25rem 0 0' }}>
-              Account #{customer.id} &bull; Member since {customer.createdAt} &bull; Rating: {customer.rating} / 5.0
+              Account #{customer.id} &bull; Member since {customer.createdAt}
             </p>
           </div>
         </div>
@@ -264,7 +264,7 @@ export function CustomerDetails() {
           <div style={{ fontSize: '1.5rem', fontWeight: 800, color: '#2C3480', marginTop: '0.35rem' }}>
             {totalBookingsCount > 50 ? 'Diamond Club' : totalBookingsCount > 10 ? 'Gold Elite' : 'Silver Regular'}
           </div>
-          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Customer satisfaction {customer.rating || '5.0'}</span>
+          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>Based on lifetime bookings</span>
         </div>
       </div>
 
