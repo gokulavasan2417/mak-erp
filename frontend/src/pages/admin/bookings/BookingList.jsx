@@ -75,6 +75,7 @@ export function BookingList() {
     if (val === 'upcoming') return 'Upcoming';
     if (val === 'active') return 'Active';
     if (val === 'completed') return 'Completed';
+    if (val === 'cancelled') return 'Cancelled';
     return 'All';
   };
 
@@ -118,7 +119,8 @@ export function BookingList() {
       Today: bookings.filter(isBookingToday).length,
       Upcoming: bookings.filter(isBookingUpcoming).length,
       Active: bookings.filter(isBookingActive).length,
-      Completed: bookings.filter(isBookingCompleted).length
+      Completed: bookings.filter(isBookingCompleted).length,
+      Cancelled: bookings.filter((b) => (b.bookingStatus === 'Cancelled' || b.status === 'Cancelled')).length
     };
   }, [bookings]);
 
@@ -301,6 +303,8 @@ export function BookingList() {
         matchesTimeline = isBookingActive(b);
       } else if (selectedTimeline === 'Completed') {
         matchesTimeline = isBookingCompleted(b);
+      } else if (selectedTimeline === 'Cancelled') {
+        matchesTimeline = (b.bookingStatus === 'Cancelled' || b.status === 'Cancelled');
       }
 
       return matchesSearch && matchesCategory && matchesStatus && matchesPayment && matchesTimeline;
@@ -623,7 +627,7 @@ export function BookingList() {
               label="Timeline"
               value={selectedTimeline}
               onChange={handleTimelineChange}
-              options={['All', 'Today', 'Upcoming', 'Active', 'Completed']}
+              options={['All', 'Today', 'Upcoming', 'Active', 'Completed', 'Cancelled']}
             />
 
             <FilterSelect
@@ -657,7 +661,8 @@ export function BookingList() {
             { id: 'Today', label: "Today's Bookings", count: timelineCounts.Today, color: '#0284C7' },
             { id: 'Upcoming', label: 'Upcoming Trips', count: timelineCounts.Upcoming, color: '#8B5CF6' },
             { id: 'Active', label: 'Active Trips', count: timelineCounts.Active, color: '#10B981' },
-            { id: 'Completed', label: 'Completed Trips', count: timelineCounts.Completed, color: '#059669' }
+            { id: 'Completed', label: 'Completed Trips', count: timelineCounts.Completed, color: '#059669' },
+            { id: 'Cancelled', label: 'Cancelled Trips', count: timelineCounts.Cancelled, color: '#EF4444' }
           ].map((pill) => {
             const isActive = selectedTimeline === pill.id;
             return (

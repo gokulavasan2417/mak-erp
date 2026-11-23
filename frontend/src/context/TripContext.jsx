@@ -512,11 +512,24 @@ export function TripProvider({ children }) {
           if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
             setPayments((prev) => {
               const remoteMap = new Map();
-              res.data.forEach((rp) => {
+              const enrichedRemote = res.data.map((rp) => {
+                const bRef = rp.bookingRef || rp.bookingNumber || rp.bookingId;
+                if ((!rp.customerName || rp.customerName.toLowerCase() === 'customer') && bRef) {
+                  const matchedBk = initialBookings.find(
+                    (b) => b.id === bRef || b.bookingNumber === bRef || b.bookingRef === bRef
+                  );
+                  if (matchedBk) {
+                    const cName = matchedBk.customerName || matchedBk.fullName || matchedBk.passengerName;
+                    return { ...rp, customerName: cName, partyName: cName };
+                  }
+                }
+                return rp;
+              });
+              enrichedRemote.forEach((rp) => {
                 const k = (rp.id || rp.paymentId || rp.receiptNumber || rp._id || '').toString();
                 if (k) remoteMap.set(k, rp);
               });
-              const merged = [...res.data];
+              const merged = [...enrichedRemote];
               (prev || []).forEach((lp) => {
                 const k = (lp.id || lp.paymentId || lp.receiptNumber || lp._id || '').toString();
                 if (k && !remoteMap.has(k)) {

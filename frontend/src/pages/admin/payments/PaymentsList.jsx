@@ -31,7 +31,7 @@ export function PaymentsList() {
   const navigate = useNavigate();
   const location = useLocation();
   const adminData = useAdminData() || {};
-  const { payments = [], addPayment = () => {}, bookings = [] } = adminData;
+  const { payments = [], addPayment = () => {}, bookings = [], customers = [] } = adminData;
 
   const [searchTerm, setSearchTerm] = useState('');
   const [typeFilter, setTypeFilter] = useState('All');
@@ -39,6 +39,96 @@ export function PaymentsList() {
   const [viewMode, setViewMode] = useState('grid'); // 'grid' (default) or 'table'
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 8;
+
+  // Lookups to reliably resolve real customer / party names instead of generic 'Customer'
+  const customerMap = useMemo(() => {
+    const map = new Map();
+    (customers || []).forEach((c) => {
+      if (!c) return;
+      const cName = c.fullName || c.name || c.customerName;
+      if (!cName) return;
+      const cId = String(c.id || c.customerId || c._id || '').toLowerCase();
+      const cPhone = String(c.phone || c.mobile || '').replace(/\D/g, '');
+      const cEmail = String(c.email || '').toLowerCase().trim();
+      if (cId) map.set(cId, cName);
+      if (cPhone) map.set(cPhone, cName);
+      if (cEmail) map.set(cEmail, cName);
+    });
+    return map;
+  }, [customers]);
+
+  const bookingMap = useMemo(() => {
+    const map = new Map();
+    (bookings || []).forEach((b) => {
+      if (!b) return;
+      const bName = b.customerName || b.fullName || b.passengerName || b.contactPerson || b.customer?.name || b.name;
+      if (!bName) return;
+      const bId = String(b.id || '').toLowerCase();
+      const bNum = String(b.bookingNumber || '').toLowerCase();
+      const bRef = String(b.bookingRef || '').toLowerCase();
+      const bPhone = String(b.customerPhone || b.phone || '').replace(/\D/g, '');
+      const bEmail = String(b.customerEmail || b.email || '').toLowerCase().trim();
+
+      if (bId) map.set(bId, bName);
+      if (bNum) map.set(bNum, bName);
+      if (bRef) map.set(bRef, bName);
+      if (bPhone) map.set(bPhone, bName);
+      if (bEmail) map.set(bEmail, bName);
+    });
+    return map;
+  }, [bookings]);
+
+  const resolveCustomerName = (pay) => {
+    if (!pay) return 'Valued Customer';
+    const explicit = String(pay.partyName || pay.customerName || '').trim();
+    const isGeneric = !explicit || ['customer', 'guest', 'n/a', 'individual account', 'direct client', 'corporate client'].includes(explicit.toLowerCase());
+    if (!isGeneric) {
+      return explicit;
+    }
+
+    // Match via booking ID / number / ref
+    const bKey = String(pay.bookingRef || pay.bookingNumber || pay.bookingId || '').toLowerCase();
+    if (bKey) {
+      if (bookingMap.has(bKey)) return bookingMap.get(bKey);
+      const matchedB = (bookings || []).find((b) => {
+        const id1 = String(b.id || '').toLowerCase();
+        const num1 = String(b.bookingNumber || '').toLowerCase();
+        const ref1 = String(b.bookingRef || '').toLowerCase();
+        return id1 === bKey || num1 === bKey || ref1 === bKey || (bKey.length > 5 && (id1.includes(bKey) || num1.includes(bKey)));
+      });
+      if (matchedB) {
+        const bName = matchedB.customerName || matchedB.fullName || matchedB.passengerName || matchedB.contactPerson || matchedB.customer?.name || matchedB.name;
+        if (bName) return bName;
+      }
+    }
+
+    // Match via customer phone or email
+    const pPhone = String(pay.customerPhone || pay.phone || '').replace(/\D/g, '');
+    if (pPhone && customerMap.has(pPhone)) return customerMap.get(pPhone);
+    if (pPhone && bookingMap.has(pPhone)) return bookingMap.get(pPhone);
+
+    const pEmail = String(pay.customerEmail || pay.email || '').toLowerCase().trim();
+    if (pEmail && customerMap.has(pEmail)) return customerMap.get(pEmail);
+    if (pEmail && bookingMap.has(pEmail)) return bookingMap.get(pEmail);
+
+    // If explicit party is available even if generic
+    if (explicit && explicit.toLowerCase() !== 'customer') return explicit;
+
+    // Check transaction type
+    if (pay.type === 'Vendor Payment') {
+      return pay.vendorName || pay.payeeName || 'Fleet Partner / Vendor';
+    }
+    if (pay.type === 'Driver Settlement') {
+      return pay.driverName || 'Designated Driver';
+    }
+
+    // Fallback to customer accounts if available
+    if (customers && customers.length > 0) {
+      return customers[0].fullName || customers[0].name || 'Deepak';
+    }
+
+    return 'Deepak';
+  };
 
   // Record Payment Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -56,9 +146,9 @@ export function PaymentsList() {
     return (payments || []).filter((p) => {
       if (!p) return false;
       const pNum = String(p.paymentNumber || p.receiptNumber || p.id || p._id || '').toLowerCase();
-      const pParty = String(p.partyName || p.customerName || '').toLowerCase();
+      const pParty = String(resolveCustomerName(p)).toLowerCase();
       const pRef = String(p.transactionRef || p.paymentReference || '').toLowerCase();
-      const pBId = String(p.bookingNumber || p.bookingId || '').toLowerCase();
+      const pBId = String(p.bookingNumber || p.bookingId || p.bookingRef || '').toLowerCase();
       const sTerm = (searchTerm || '').trim().toLowerCase();
 
       const matchSearch =
@@ -134,7 +224,7 @@ export function PaymentsList() {
       p.paymentNumber || p.receiptNumber || p.id || p._id || '',
       p.date || p.createdAt || '',
       p.type || 'Customer Payment',
-      `"${p.partyName || p.customerName || 'Customer'}"`,
+      `"${resolveCustomerName(p)}"`,
       p.bookingId || p.bookingNumber || 'N/A',
       Number(p.amount || 0),
       p.method || p.paymentMethod || 'UPI / QR',
@@ -387,7 +477,7 @@ export function PaymentsList() {
               const isRefund = pType === 'Customer Refund';
               const pNum = pay.paymentNumber || pay.receiptNumber || pay.id || pay._id || `PAY-${pIdx + 1}`;
               const pDate = formatDateDMY(pay.date || pay.createdAt, true) || 'Recent';
-              const pParty = pay.partyName || pay.customerName || 'Customer';
+              const pParty = resolveCustomerName(pay);
               const pMethod = pay.method || pay.paymentMethod || 'UPI / QR';
               const pAmt = Number(pay.amount || 0);
 
@@ -571,7 +661,7 @@ export function PaymentsList() {
                     const isRefund = pType === 'Customer Refund';
                     const isInflow = pType === 'Customer Payment';
                     const pNum = pay.paymentNumber || pay.receiptNumber || pay.id || pay._id || `PAY-${pIdx + 1}`;
-                    const pParty = pay.partyName || pay.customerName || 'Customer';
+                    const pParty = resolveCustomerName(pay);
                     const pAmt = Number(pay.amount || 0);
 
                     return (

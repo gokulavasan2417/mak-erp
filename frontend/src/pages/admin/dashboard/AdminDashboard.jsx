@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   TrendingUp,
   CheckCircle2,
+  XCircle,
   Navigation,
   Eye,
   Plus,
@@ -62,6 +63,7 @@ export function AdminDashboard() {
   const activeTrips = bookings.filter(isBookingActive).length;
   const upcomingTrips = bookings.filter(isBookingUpcoming).length;
   const completedTrips = bookings.filter(isBookingCompleted).length;
+  const cancelledTrips = bookings.filter((b) => (b.bookingStatus === 'Cancelled' || b.status === 'Cancelled')).length;
   const todaysBookings = bookings.filter(isBookingToday).length;
 
   // Identify vehicles actively on the road from bookings or vehicle status
@@ -118,20 +120,138 @@ export function AdminDashboard() {
     return `₹${num.toLocaleString('en-IN')}`;
   };
 
-  // 12 KPI Cards Specification - Deep links to Bookings with timeframe filters
+  // 13 KPI Cards Specification - Deep links to Bookings with timeframe filters
   const kpiCards = [
-    { title: 'Total Bookings', value: totalBookings, change: totalBookings > 0 ? `${totalBookings} Total` : 'No bookings', isPositive: true, icon: Calendar, color: '#2C3480', link: '/admin/bookings?timeframe=all', tooltip: 'View all travel bookings' },
-    { title: "Today's Bookings", value: todaysBookings, change: todaysBookings > 0 ? `+${todaysBookings} Today` : 'None today', isPositive: true, icon: Clock, color: '#0284C7', link: '/admin/bookings?timeframe=today', tooltip: "View today's bookings" },
-    { title: 'Upcoming Trips', value: upcomingTrips, change: upcomingTrips > 0 ? `${upcomingTrips} Scheduled` : 'No upcoming', isPositive: true, icon: Compass, color: '#8B5CF6', link: '/admin/bookings?timeframe=upcoming', tooltip: 'View upcoming trips' },
-    { title: 'Active Trips', value: activeTrips, change: activeTrips > 0 ? 'Live On Road' : 'No active trips', isPositive: true, icon: Navigation, color: '#10B981', link: '/admin/bookings?timeframe=active', tooltip: 'View active dispatches' },
-    { title: 'Completed Trips', value: completedTrips, change: completedTrips > 0 ? 'Fulfilled' : 'None yet', isPositive: true, icon: CheckCircle2, color: '#059669', link: '/admin/bookings?timeframe=completed', tooltip: 'View completed bookings' },
-    { title: 'Available Vehicles', value: vehicles.length > 0 ? `${availableVehicles} / ${vehicles.length}` : '0 / 0', change: availableVehicles > 0 ? 'Ready for duty' : 'No vehicles', isPositive: true, icon: Car, color: '#10B981', link: '/admin/fleet', tooltip: 'Manage fleet and vehicle availability' },
-    { title: 'Vehicles On Trip', value: vehiclesOnTrip, change: vehiclesOnTrip > 0 ? 'Active fleet' : 'All at depot', isPositive: true, icon: Car, color: '#F59E0B', link: '/admin/fleet', tooltip: 'View active vehicles on duty' },
-    { title: 'Total Drivers', value: totalDrivers, change: totalDrivers > 0 ? `${totalDrivers} registered` : 'No drivers', isPositive: true, icon: UserCheck, color: '#2C3480', link: '/admin/drivers', tooltip: 'View driver roster & duty status' },
-    { title: 'Total Customers', value: totalCustomers, change: totalCustomers > 0 ? `${totalCustomers} accounts` : 'No customers', isPositive: true, icon: Users, color: '#0284C7', link: '/admin/customers', tooltip: 'Manage customer accounts & CRM' },
-    { title: 'Total Revenue', value: formatKpiCurrency(totalRevenue), change: totalRevenue > 0 ? 'Recorded' : 'Clean slate', isPositive: true, icon: DollarSign, color: '#10B981', link: '/admin/finance', tooltip: 'View financial revenue overview' },
-    { title: 'Pending Payments', value: formatKpiCurrency(pendingPayments), change: pendingPayments > 0 ? 'Collection due' : 'All clear', isPositive: pendingPayments === 0, icon: AlertTriangle, color: pendingPayments > 0 ? '#EF4444' : '#10B981', link: '/admin/payments', tooltip: 'View pending receivables & payments' },
-    { title: 'Total Expenses', value: formatKpiCurrency(totalExpenses), change: totalExpenses > 0 ? 'Logged' : 'No expenses', isPositive: true, icon: Receipt, color: '#64748B', link: '/admin/expenses', tooltip: 'Manage and review trip expenses' }
+    {
+      title: 'Total Bookings',
+      value: totalBookings,
+      change: totalBookings > 0 ? `${totalBookings} Total (${completedTrips} Done • ${cancelledTrips} Cancelled)` : 'No bookings',
+      isPositive: true,
+      icon: Calendar,
+      color: '#2C3480',
+      link: '/admin/bookings?timeframe=all',
+      tooltip: 'View all travel bookings'
+    },
+    {
+      title: "Today's Bookings",
+      value: todaysBookings,
+      change: todaysBookings > 0 ? `+${todaysBookings} Today` : 'None today',
+      isPositive: true,
+      icon: Clock,
+      color: '#0284C7',
+      link: '/admin/bookings?timeframe=today',
+      tooltip: "View today's bookings"
+    },
+    {
+      title: 'Upcoming Trips',
+      value: upcomingTrips,
+      change: upcomingTrips > 0 ? `${upcomingTrips} Scheduled` : 'No upcoming',
+      isPositive: true,
+      icon: Compass,
+      color: '#8B5CF6',
+      link: '/admin/bookings?timeframe=upcoming',
+      tooltip: 'View upcoming trips'
+    },
+    {
+      title: 'Active Trips',
+      value: activeTrips,
+      change: activeTrips > 0 ? 'Live On Road' : 'No active trips',
+      isPositive: true,
+      icon: Navigation,
+      color: '#10B981',
+      link: '/admin/bookings?timeframe=active',
+      tooltip: 'View active dispatches'
+    },
+    {
+      title: 'Completed Trips',
+      value: completedTrips,
+      change: completedTrips > 0 ? `${completedTrips} Fulfilled • ${cancelledTrips} Cancelled` : 'None yet',
+      isPositive: true,
+      icon: CheckCircle2,
+      color: '#059669',
+      link: '/admin/bookings?timeframe=completed',
+      tooltip: 'View completed bookings'
+    },
+    {
+      title: 'Cancelled Trips',
+      value: cancelledTrips,
+      change: cancelledTrips > 0 ? `${cancelledTrips} Cancelled` : '0 Cancelled',
+      isPositive: false,
+      icon: XCircle,
+      color: '#EF4444',
+      link: '/admin/bookings?timeframe=cancelled',
+      tooltip: 'View cancelled bookings'
+    },
+    {
+      title: 'Available Vehicles',
+      value: vehicles.length > 0 ? `${availableVehicles} / ${vehicles.length}` : '0 / 0',
+      change: availableVehicles > 0 ? 'Ready for duty' : 'No vehicles',
+      isPositive: true,
+      icon: Car,
+      color: '#10B981',
+      link: '/admin/fleet',
+      tooltip: 'Manage fleet and vehicle availability'
+    },
+    {
+      title: 'Vehicles On Trip',
+      value: vehiclesOnTrip,
+      change: vehiclesOnTrip > 0 ? 'Active fleet' : 'All at depot',
+      isPositive: true,
+      icon: Car,
+      color: '#F59E0B',
+      link: '/admin/fleet',
+      tooltip: 'View active vehicles on duty'
+    },
+    {
+      title: 'Total Drivers',
+      value: totalDrivers,
+      change: totalDrivers > 0 ? `${totalDrivers} registered` : 'No drivers',
+      isPositive: true,
+      icon: UserCheck,
+      color: '#2C3480',
+      link: '/admin/drivers',
+      tooltip: 'View driver roster & duty status'
+    },
+    {
+      title: 'Total Customers',
+      value: totalCustomers,
+      change: totalCustomers > 0 ? `${totalCustomers} accounts` : 'No customers',
+      isPositive: true,
+      icon: Users,
+      color: '#0284C7',
+      link: '/admin/customers',
+      tooltip: 'Manage customer accounts & CRM'
+    },
+    {
+      title: 'Total Revenue',
+      value: formatKpiCurrency(totalRevenue),
+      change: totalRevenue > 0 ? 'Recorded' : 'Clean slate',
+      isPositive: true,
+      icon: DollarSign,
+      color: '#10B981',
+      link: '/admin/finance',
+      tooltip: 'View financial revenue overview'
+    },
+    {
+      title: 'Pending Payments',
+      value: formatKpiCurrency(pendingPayments),
+      change: pendingPayments > 0 ? 'Collection due' : 'All clear',
+      isPositive: pendingPayments === 0,
+      icon: AlertTriangle,
+      color: pendingPayments > 0 ? '#EF4444' : '#10B981',
+      link: '/admin/payments',
+      tooltip: 'View pending receivables & payments'
+    },
+    {
+      title: 'Total Expenses',
+      value: formatKpiCurrency(totalExpenses),
+      change: totalExpenses > 0 ? 'Logged' : 'No expenses',
+      isPositive: true,
+      icon: Receipt,
+      color: '#64748B',
+      link: '/admin/expenses',
+      tooltip: 'Manage and review trip expenses'
+    }
   ];
 
   const getStatusBadge = (status) => {

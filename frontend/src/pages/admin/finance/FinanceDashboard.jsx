@@ -19,7 +19,15 @@ import {
   Plus,
   Banknote,
   Filter,
-  RotateCcw
+  RotateCcw,
+  Fuel,
+  Car,
+  Wrench,
+  Users,
+  PieChart,
+  BarChart3,
+  Award,
+  ExternalLink
 } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -59,11 +67,97 @@ const MONTH_NAMES = [
   'July', 'August', 'September', 'October', 'November', 'December'
 ];
 
+export const SPEND_CATEGORY_DEFINITIONS = [
+  {
+    id: 'Fuel',
+    label: 'Fuel',
+    icon: Fuel,
+    color: '#D97706',
+    bgColor: '#FFFBEB',
+    borderColor: '#FDE68A',
+    description: 'Diesel, petrol & commercial fuel refills on transit routes'
+  },
+  {
+    id: 'Toll / Fastag',
+    label: 'Toll / Fastag',
+    icon: Receipt,
+    color: '#2563EB',
+    bgColor: '#EFF6FF',
+    borderColor: '#BFDBFE',
+    description: 'NHAI Fastag highway tolls & expressway electronic plazas'
+  },
+  {
+    id: 'Driver Allowance',
+    label: 'Driver Allowance',
+    icon: Users,
+    color: '#10B981',
+    bgColor: '#ECFDF5',
+    borderColor: '#A7F3D0',
+    description: 'Driver battas, night halt allowances & food compensations'
+  },
+  {
+    id: 'Vendor Payment',
+    label: 'Vendor Payment',
+    icon: Building,
+    color: '#7C3AED',
+    bgColor: '#F5F3FF',
+    borderColor: '#DDD6FE',
+    description: 'Disbursements and contracted payouts to vehicle fleet vendors'
+  },
+  {
+    id: 'Parking',
+    label: 'Parking',
+    icon: Car,
+    color: '#0284C7',
+    bgColor: '#F0F9FF',
+    borderColor: '#BAE6FD',
+    description: 'Airport terminal entry fees, tourist parking & station charges'
+  },
+  {
+    id: 'Car Services & Maintenance',
+    label: 'Car Services & Maintenance',
+    icon: Wrench,
+    color: '#DC2626',
+    bgColor: '#FEF2F2',
+    borderColor: '#FECACA',
+    description: 'Periodic workshop servicing, oil change, tyre replacement & repairs'
+  }
+];
+
+export function mapExpenseToCategory(item) {
+  const cat = String(item.category || item.type || item.paymentType || '').toLowerCase();
+  const sub = String(item.subCategory || '').toLowerCase();
+  const desc = String(item.description || item.adminRemarks || item.notes || '').toLowerCase();
+  const payee = String(item.payee || item.workshopName || item.vendorName || '').toLowerCase();
+  const combined = `${cat} ${sub} ${desc} ${payee}`;
+
+  if (combined.includes('fuel') || combined.includes('diesel') || combined.includes('petrol') || combined.includes('cng') || combined.includes('refuel')) {
+    return 'Fuel';
+  }
+  if (combined.includes('toll') || combined.includes('fastag') || combined.includes('expressway') || combined.includes('nhai')) {
+    return 'Toll / Fastag';
+  }
+  if (combined.includes('driver allowance') || combined.includes('batta') || combined.includes('night stay') || combined.includes('driver salary') || combined.includes('driver food')) {
+    return 'Driver Allowance';
+  }
+  if (combined.includes('vendor') || combined.includes('payout') || combined.includes('partner') || cat === 'vendor payment' || cat === 'vendor charges') {
+    return 'Vendor Payment';
+  }
+  if (combined.includes('parking') || combined.includes('airport parking') || combined.includes('valet')) {
+    return 'Parking';
+  }
+  if (combined.includes('maintenance') || combined.includes('service') || combined.includes('repair') || combined.includes('tyre') || combined.includes('brake') || combined.includes('clutch') || combined.includes('workshop') || combined.includes('car service') || combined.includes('engine')) {
+    return 'Car Services & Maintenance';
+  }
+  return 'Car Services & Maintenance';
+}
+
 export function FinanceDashboard() {
   const navigate = useNavigate();
   const { payments = [], invoices = [], expenses = [], bookings = [], financialMetrics = {} } = useAdminData();
 
   const [activeTab, setActiveTab] = useState('recent-payments');
+  const [selectedExpenseCat, setSelectedExpenseCat] = useState('All');
 
   // Time Period Filter State: 'all' | 'weekly' | 'monthly' | 'yearly' | 'custom'
   const [periodFilter, setPeriodFilter] = useState('all');
@@ -280,6 +374,119 @@ export function FinanceDashboard() {
     }
     return '';
   }, [periodFilter, selectedMonth, selectedYear, customStartDate, customEndDate]);
+
+  // Operational Expense Category Analytics & Spend Breakdown (Fuel, Toll, Allowance, Vendor, Parking, Maintenance)
+  const categoryAnalyticsData = useMemo(() => {
+    const recordsByCat = {
+      'Fuel': [],
+      'Toll / Fastag': [],
+      'Driver Allowance': [],
+      'Vendor Payment': [],
+      'Parking': [],
+      'Car Services & Maintenance': []
+    };
+
+    // 1. Map filtered expenses
+    (filteredExpenses || []).forEach((exp) => {
+      const catId = mapExpenseToCategory(exp);
+      if (recordsByCat[catId]) {
+        recordsByCat[catId].push({
+          id: exp.id || exp._id,
+          date: exp.expenseDate || exp.date || exp.createdAt,
+          category: catId,
+          subCategory: exp.subCategory || exp.category,
+          description: exp.description || exp.notes || `${catId} operational voucher`,
+          amount: Number(exp.approvedAmount || exp.amount || 0),
+          status: exp.status || 'Approved',
+          payee: exp.payee || exp.workshopName || exp.driverName || 'Fleet Operations',
+          vehicle: exp.vehicleRegNo || exp.vehicleNumber || exp.vehicleModel || (exp.bookingId ? `Booking #${exp.bookingNumber || exp.bookingId}` : 'Depot Fleet'),
+          source: 'Expense Voucher',
+          raw: exp
+        });
+      }
+    });
+
+    // 2. Map vendor payments from filteredPayments if not already in expenses
+    const existingExpenseIds = new Set((filteredExpenses || []).map((e) => String(e.id || e._id)));
+    (filteredPayments || []).forEach((pay) => {
+      const isVendorPay = pay.type === 'Vendor Payment' || pay.paymentType === 'Vendor Payment' || pay.paymentType === 'Vendor Payout';
+      const pId = String(pay.id || pay._id || pay.paymentNumber);
+      if (isVendorPay && !existingExpenseIds.has(pId)) {
+        recordsByCat['Vendor Payment'].push({
+          id: pId,
+          date: pay.date || pay.createdAt,
+          category: 'Vendor Payment',
+          subCategory: 'Vendor Fleet Disbursement',
+          description: pay.notes || pay.description || 'Vendor vehicle contracted disbursement',
+          amount: Number(pay.amount || 0),
+          status: pay.status || 'Completed',
+          payee: pay.partyName || pay.vendorName || 'Fleet Partner Vendor',
+          vehicle: pay.bookingNumber || pay.bookingId ? `Booking #${pay.bookingNumber || pay.bookingId}` : 'Fleet Partner',
+          source: 'Payment Voucher',
+          raw: pay
+        });
+      }
+    });
+
+    // Calculate sum across all categories
+    let totalAllCategoriesSpend = 0;
+    const categoriesWithStats = SPEND_CATEGORY_DEFINITIONS.map((def) => {
+      const list = recordsByCat[def.id] || [];
+      const totalAmount = list.reduce((sum, item) => sum + (Number(item.amount) || 0), 0);
+      totalAllCategoriesSpend += totalAmount;
+      return {
+        ...def,
+        totalAmount,
+        count: list.length,
+        items: list
+      };
+    });
+
+    // Compute percentage and rank
+    const categoriesWithPercentages = categoriesWithStats.map((cat) => {
+      const pct = totalAllCategoriesSpend > 0 ? ((cat.totalAmount / totalAllCategoriesSpend) * 100).toFixed(1) : '0';
+      return {
+        ...cat,
+        percentage: parseFloat(pct)
+      };
+    });
+
+    const rankedCategories = [...categoriesWithPercentages].sort((a, b) => b.totalAmount - a.totalAmount);
+    const highestSpendCategory = rankedCategories[0] && rankedCategories[0].totalAmount > 0 ? rankedCategories[0] : rankedCategories[0];
+
+    // Filter items based on selectedExpenseCat
+    let activeItems = [];
+    if (selectedExpenseCat === 'All') {
+      activeItems = Object.values(recordsByCat).flat().sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
+    } else {
+      activeItems = (recordsByCat[selectedExpenseCat] || []).sort((a, b) => (Number(b.amount) || 0) - (Number(a.amount) || 0));
+    }
+
+    const selectedCategoryStats = selectedExpenseCat === 'All'
+      ? {
+          id: 'All',
+          label: 'All Expense Categories',
+          totalAmount: totalAllCategoriesSpend,
+          count: activeItems.length,
+          percentage: 100
+        }
+      : categoriesWithPercentages.find((c) => c.id === selectedExpenseCat) || {
+          id: selectedExpenseCat,
+          label: selectedExpenseCat,
+          totalAmount: 0,
+          count: 0,
+          percentage: 0
+        };
+
+    return {
+      categories: categoriesWithPercentages,
+      rankedCategories,
+      highestSpendCategory,
+      totalAllCategoriesSpend,
+      activeItems,
+      selectedCategoryStats
+    };
+  }, [filteredExpenses, filteredPayments, selectedExpenseCat]);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -702,6 +909,401 @@ export function FinanceDashboard() {
               Income minus all operating expenses
             </span>
           </div>
+        </div>
+      </div>
+
+      {/* SECTION: OPERATIONAL EXPENSE CATEGORY ANALYTICS & SPEND BREAKDOWN */}
+      <div
+        style={{
+          backgroundColor: '#ffffff',
+          borderRadius: '16px',
+          border: '1px solid #e2e8f0',
+          padding: '1.5rem',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.05)',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: '1.25rem'
+        }}
+      >
+        {/* Module Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <PieChart size={20} color="#2C3480" />
+              <h2 style={{ fontSize: '1.15rem', fontWeight: 800, color: '#0f172a', margin: 0 }}>
+                Operational Expense Category Analytics &amp; Spend Breakdown
+              </h2>
+            </div>
+            <p style={{ fontSize: '0.8125rem', color: '#64748b', margin: '0.25rem 0 0' }}>
+              Audit expenditure across Fuel, Toll, Driver Allowance, Vendor Payments, Parking &amp; Car Services ({periodFilter === 'all' ? 'All-Time' : activeDateLabel})
+            </p>
+          </div>
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => navigate('/admin/expenses')}
+              style={{ fontSize: '0.8125rem', fontWeight: 600 }}
+            >
+              <Receipt size={14} style={{ marginRight: '0.35rem' }} /> Manage Expense Vouchers &rarr;
+            </Button>
+          </div>
+        </div>
+
+        {/* Highlight Banner: Highest Spend Category Spotlight */}
+        {categoryAnalyticsData.highestSpendCategory && categoryAnalyticsData.totalAllCategoriesSpend > 0 ? (
+          <div
+            style={{
+              backgroundColor: '#fffbeb',
+              border: '1.5px solid #fde68a',
+              borderRadius: '12px',
+              padding: '1rem 1.25rem',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              flexWrap: 'wrap',
+              gap: '1rem'
+            }}
+          >
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+              <div
+                style={{
+                  width: '42px',
+                  height: '42px',
+                  borderRadius: '10px',
+                  backgroundColor: '#fef3c7',
+                  border: '1px solid #fcd34d',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#b45309',
+                  flexShrink: 0
+                }}
+              >
+                <Award size={22} />
+              </div>
+              <div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 800, textTransform: 'uppercase', letterSpacing: '0.05em', color: '#b45309' }}>
+                    Highest Spend Category Identified
+                  </span>
+                  <span style={{ fontSize: '0.75rem', fontWeight: 700, backgroundColor: '#fef3c7', color: '#92400e', padding: '0.1rem 0.5rem', borderRadius: '12px', border: '1px solid #fde68a' }}>
+                    {categoryAnalyticsData.highestSpendCategory.percentage}% of all expenses
+                  </span>
+                </div>
+                <div style={{ fontSize: '1.15rem', fontWeight: 800, color: '#78350f', marginTop: '0.15rem' }}>
+                  {categoryAnalyticsData.highestSpendCategory.label}: ₹{categoryAnalyticsData.highestSpendCategory.totalAmount.toLocaleString('en-IN')}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#92400e', marginTop: '0.1rem' }}>
+                  {categoryAnalyticsData.highestSpendCategory.description} ({categoryAnalyticsData.highestSpendCategory.count} vouchers processed)
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSelectedExpenseCat(categoryAnalyticsData.highestSpendCategory.id)}
+              style={{
+                backgroundColor: '#ffffff',
+                border: '1px solid #fcd34d',
+                color: '#b45309',
+                padding: '0.45rem 0.85rem',
+                borderRadius: '8px',
+                fontSize: '0.8125rem',
+                fontWeight: 700,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                boxShadow: '0 1px 2px rgba(0,0,0,0.05)'
+              }}
+            >
+              Filter this category &rarr;
+            </button>
+          </div>
+        ) : null}
+
+        {/* Multi-Color Category Distribution Meter Bar */}
+        {categoryAnalyticsData.totalAllCategoriesSpend > 0 && (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+              <span>Relative Spending Distribution (% share)</span>
+              <span>Total Operating Spend: <strong>₹{categoryAnalyticsData.totalAllCategoriesSpend.toLocaleString('en-IN')}</strong></span>
+            </div>
+            <div style={{ width: '100%', height: '12px', borderRadius: '6px', overflow: 'hidden', display: 'flex', backgroundColor: '#f1f5f9' }}>
+              {categoryAnalyticsData.rankedCategories.map((cat) => {
+                if (cat.percentage <= 0) return null;
+                return (
+                  <div
+                    key={cat.id}
+                    title={`${cat.label}: ₹${cat.totalAmount.toLocaleString('en-IN')} (${cat.percentage}%)`}
+                    style={{
+                      width: `${cat.percentage}%`,
+                      backgroundColor: cat.color,
+                      height: '100%',
+                      transition: 'width 0.3s ease'
+                    }}
+                  />
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* 6 Category Spending Cards Grid (Ranked from highest to lowest) */}
+        <div>
+          <div style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.04em', marginBottom: '0.75rem' }}>
+            Spend by Category &bull; Click any category to drill down
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.875rem' }}>
+            {categoryAnalyticsData.rankedCategories.map((cat, idx) => {
+              const Icon = cat.icon;
+              const isSelected = selectedExpenseCat === cat.id;
+              const isHighest = idx === 0 && cat.totalAmount > 0;
+
+              return (
+                <div
+                  key={cat.id}
+                  onClick={() => setSelectedExpenseCat(isSelected ? 'All' : cat.id)}
+                  title={`Click to view ${cat.label} vouchers`}
+                  style={{
+                    backgroundColor: isSelected ? cat.bgColor : '#f8fafc',
+                    border: `1.5px solid ${isSelected ? cat.color : isHighest ? '#fde68a' : '#e2e8f0'}`,
+                    borderRadius: '12px',
+                    padding: '0.875rem',
+                    cursor: 'pointer',
+                    transition: 'all 0.18s ease',
+                    position: 'relative'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                    e.currentTarget.style.boxShadow = '0 6px 14px rgba(0,0,0,0.06)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.transform = 'none';
+                    e.currentTarget.style.boxShadow = 'none';
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                      <div
+                        style={{
+                          width: '28px',
+                          height: '28px',
+                          borderRadius: '6px',
+                          backgroundColor: `${cat.color}18`,
+                          color: cat.color,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center'
+                        }}
+                      >
+                        <Icon size={14} />
+                      </div>
+                      <span style={{ fontSize: '0.72rem', fontWeight: 800, color: '#64748b' }}>
+                        #{idx + 1}
+                      </span>
+                    </div>
+
+                    <span
+                      style={{
+                        fontSize: '0.6875rem',
+                        fontWeight: 800,
+                        color: cat.color,
+                        backgroundColor: `${cat.color}15`,
+                        padding: '0.1rem 0.4rem',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      {cat.percentage}%
+                    </span>
+                  </div>
+
+                  <div style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                    {cat.label}
+                  </div>
+
+                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: cat.totalAmount > 0 ? '#0f172a' : '#94a3b8', marginTop: '0.2rem' }}>
+                    ₹{cat.totalAmount.toLocaleString('en-IN')}
+                  </div>
+
+                  <div style={{ fontSize: '0.7rem', color: '#64748b', marginTop: '0.2rem' }}>
+                    {cat.count} {cat.count === 1 ? 'voucher' : 'vouchers'} logged
+                  </div>
+
+                  {/* Progress bar */}
+                  <div style={{ width: '100%', height: '4px', backgroundColor: '#e2e8f0', borderRadius: '2px', marginTop: '0.5rem', overflow: 'hidden' }}>
+                    <div
+                      style={{
+                        width: `${Math.min(100, cat.percentage)}%`,
+                        height: '100%',
+                        backgroundColor: cat.color
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Category Filter Selector Pills */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', paddingTop: '0.75rem', borderTop: '1px solid #f1f5f9' }}>
+          <span style={{ fontSize: '0.78rem', fontWeight: 700, color: '#64748b', marginRight: '0.25rem' }}>
+            Filter Category:
+          </span>
+
+          <button
+            type="button"
+            onClick={() => setSelectedExpenseCat('All')}
+            style={{
+              padding: '0.4rem 0.8rem',
+              borderRadius: '20px',
+              border: selectedExpenseCat === 'All' ? '1.5px solid #2C3480' : '1px solid #cbd5e1',
+              backgroundColor: selectedExpenseCat === 'All' ? '#2C3480' : '#ffffff',
+              color: selectedExpenseCat === 'All' ? '#ffffff' : '#475569',
+              fontSize: '0.75rem',
+              fontWeight: 700,
+              cursor: 'pointer',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            All Categories (₹{categoryAnalyticsData.totalAllCategoriesSpend.toLocaleString('en-IN')})
+          </button>
+
+          {SPEND_CATEGORY_DEFINITIONS.map((def) => {
+            const isSelected = selectedExpenseCat === def.id;
+            const stat = categoryAnalyticsData.categories.find((c) => c.id === def.id);
+            const amt = stat ? stat.totalAmount : 0;
+            return (
+              <button
+                key={def.id}
+                type="button"
+                onClick={() => setSelectedExpenseCat(def.id)}
+                style={{
+                  padding: '0.4rem 0.8rem',
+                  borderRadius: '20px',
+                  border: isSelected ? `1.5px solid ${def.color}` : '1px solid #cbd5e1',
+                  backgroundColor: isSelected ? def.color : '#ffffff',
+                  color: isSelected ? '#ffffff' : '#475569',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                {def.label} (₹{amt.toLocaleString('en-IN')})
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Selected Category Drill-Down Details & Vouchers */}
+        <div style={{ backgroundColor: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', padding: '1rem' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.875rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+            <div>
+              <div style={{ fontSize: '0.9rem', fontWeight: 800, color: '#0f172a' }}>
+                {categoryAnalyticsData.selectedCategoryStats.label} Breakdown
+              </div>
+              <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                Showing {categoryAnalyticsData.activeItems.length} matching expense vouchers &bull; Total: ₹{categoryAnalyticsData.selectedCategoryStats.totalAmount.toLocaleString('en-IN')}
+              </div>
+            </div>
+
+            {selectedExpenseCat !== 'All' && (
+              <button
+                type="button"
+                onClick={() => setSelectedExpenseCat('All')}
+                style={{
+                  border: 'none',
+                  backgroundColor: 'transparent',
+                  color: '#2C3480',
+                  fontSize: '0.75rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  textDecoration: 'underline'
+                }}
+              >
+                Reset to All Categories
+              </button>
+            )}
+          </div>
+
+          {/* Vouchers Table */}
+          {categoryAnalyticsData.activeItems.length === 0 ? (
+            <div style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+              <Receipt size={32} style={{ color: '#cbd5e1', margin: '0 auto 0.5rem' }} />
+              <div style={{ fontWeight: 700, color: '#334155' }}>No expense vouchers recorded for {categoryAnalyticsData.selectedCategoryStats.label}</div>
+              <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.25rem' }}>Try adjusting your date range filter or record a new claim.</div>
+            </div>
+          ) : (
+            <div style={{ overflowX: 'auto', backgroundColor: '#ffffff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+              <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '0.8125rem' }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: '#f1f5f9', color: '#475569', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                    <th style={{ padding: '0.75rem 0.875rem' }}>Voucher Ref</th>
+                    <th style={{ padding: '0.75rem 0.875rem' }}>Date</th>
+                    <th style={{ padding: '0.75rem 0.875rem' }}>Category</th>
+                    <th style={{ padding: '0.75rem 0.875rem' }}>Payee / Beneficiary</th>
+                    <th style={{ padding: '0.75rem 0.875rem' }}>Vehicle / Booking</th>
+                    <th style={{ padding: '0.75rem 0.875rem' }}>Description</th>
+                    <th style={{ padding: '0.75rem 0.875rem', textAlign: 'right' }}>Amount (INR)</th>
+                    <th style={{ padding: '0.75rem 0.875rem', textAlign: 'center' }}>Status</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {categoryAnalyticsData.activeItems.map((item, itIdx) => {
+                    const catDef = SPEND_CATEGORY_DEFINITIONS.find((c) => c.id === item.category) || { color: '#64748b' };
+                    return (
+                      <tr
+                        key={item.id || `exp-cat-${itIdx}`}
+                        style={{ borderBottom: '1px solid #f1f5f9', transition: 'background-color 0.15s' }}
+                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                      >
+                        <td style={{ padding: '0.75rem 0.875rem', fontWeight: 700, color: '#2C3480', fontFamily: 'monospace' }}>
+                          {item.id}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.875rem', color: '#64748b', fontSize: '0.78rem' }}>
+                          {formatDateDMY(item.date, true) || 'Recent'}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.875rem' }}>
+                          <span
+                            style={{
+                              fontSize: '0.7rem',
+                              fontWeight: 700,
+                              color: catDef.color,
+                              backgroundColor: `${catDef.color}15`,
+                              padding: '0.15rem 0.45rem',
+                              borderRadius: '4px'
+                            }}
+                          >
+                            {item.category}
+                          </span>
+                        </td>
+                        <td style={{ padding: '0.75rem 0.875rem', fontWeight: 600, color: '#1e293b' }}>
+                          {item.payee}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.875rem', color: '#64748b' }}>
+                          {item.vehicle}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.875rem', color: '#334155', maxWidth: '280px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.description}>
+                          {item.description}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.875rem', textAlign: 'right', fontWeight: 800, color: '#dc2626' }}>
+                          ₹{Number(item.amount || 0).toLocaleString('en-IN')}
+                        </td>
+                        <td style={{ padding: '0.75rem 0.875rem', textAlign: 'center' }}>
+                          <StatusBadge status={item.status || 'Approved'} />
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       </div>
 
