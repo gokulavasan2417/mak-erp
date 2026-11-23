@@ -55,6 +55,7 @@ export function ExpensesList() {
   } = tripCtx;
 
   const [searchTerm, setSearchTerm] = useState('');
+  const [scopeFilter, setScopeFilter] = useState('all'); // 'all', 'service', 'trip'
   const [categoryFilter, setCategoryFilter] = useState('All');
   const [statusFilter, setStatusFilter] = useState('All');
   const [viewMode, setViewMode] = useState('grid');
@@ -92,16 +93,20 @@ export function ExpensesList() {
 
   const categories = [
     'All Categories',
-    'Vendor Payout',
-    'Driver Salary',
-    'Driver Allowance',
+    'Vehicle Maintenance',
+    'General Periodic Service (Oil, Filters & Fluids)',
+    'Brake System & Pad Replacement',
+    'Tyre Replacement & Wheel Alignment',
+    'AC System & Climate Control Servicing',
+    'Clutch & Transmission Maintenance',
+    'Battery & Electrical System',
+    'Bodywork & Painting',
     'Fuel',
     'Toll',
     'Parking',
-    'Food',
-    'Hotel',
-    'State Permit',
-    'Vehicle Maintenance',
+    'Driver Allowance',
+    'Driver Salary',
+    'Vendor Payout',
     'Other Trip Expenses'
   ];
 
@@ -109,12 +114,22 @@ export function ExpensesList() {
   const filteredExpenses = useMemo(() => {
     return (expenses || []).filter((e) => {
       if (!e) return false;
+
+      // Scope filter: all vs car service vs trip claims
+      const isService = e.category === 'Vehicle Maintenance' || Boolean(e.vehicleRegNo || e.workshopName || e.subCategory);
+      if (scopeFilter === 'service' && !isService) return false;
+      if (scopeFilter === 'trip' && isService) return false;
+
       const sTerm = (searchTerm || '').trim().toLowerCase();
       const eId = String(e.id || e._id || '').toLowerCase();
       const eBookingId = String(e.bookingId || e.bookingNumber || e.bookingRef || '').toLowerCase();
       const eDriverName = String(e.driverName || e.payee || '').toLowerCase();
       const eDescription = String(e.description || e.title || '').toLowerCase();
       const eCategory = String(e.category || '').toLowerCase();
+      const eVehicle = String(e.vehicleRegNo || e.vehicleNumber || e.vehicleModel || '').toLowerCase();
+      const eWorkshop = String(e.workshopName || '').toLowerCase();
+      const eSubCategory = String(e.subCategory || '').toLowerCase();
+      const eInvoice = String(e.invoiceNo || e.invoiceNumber || '').toLowerCase();
 
       const matchSearch =
         sTerm === '' ||
@@ -122,18 +137,23 @@ export function ExpensesList() {
         eBookingId.includes(sTerm) ||
         eDriverName.includes(sTerm) ||
         eDescription.includes(sTerm) ||
-        eCategory.includes(sTerm);
+        eCategory.includes(sTerm) ||
+        eVehicle.includes(sTerm) ||
+        eWorkshop.includes(sTerm) ||
+        eSubCategory.includes(sTerm) ||
+        eInvoice.includes(sTerm);
 
       const matchCategory =
         categoryFilter === 'All' ||
         categoryFilter === 'All Categories' ||
-        eCategory === categoryFilter.toLowerCase();
+        eCategory === categoryFilter.toLowerCase() ||
+        eSubCategory === categoryFilter.toLowerCase();
 
       const matchStatus = statusFilter === 'All' || e.status === statusFilter;
 
       return matchSearch && matchCategory && matchStatus;
     });
-  }, [expenses, searchTerm, categoryFilter, statusFilter]);
+  }, [expenses, scopeFilter, searchTerm, categoryFilter, statusFilter]);
 
   // Paginated
   const paginatedExpenses = useMemo(() => {
@@ -146,6 +166,26 @@ export function ExpensesList() {
     return (expenses || [])
       .filter((e) => e && (e.status === 'Approved' || e.status === 'Paid'))
       .reduce((sum, e) => sum + (parseFloat(e.approvedAmount || e.amount || 0) || 0), 0);
+  }, [expenses]);
+
+  const serviceTotal = useMemo(() => {
+    return (expenses || [])
+      .filter((e) => e && (e.category === 'Vehicle Maintenance' || e.workshopName || e.vehicleRegNo) && (e.status === 'Approved' || e.status === 'Paid'))
+      .reduce((sum, e) => sum + (parseFloat(e.approvedAmount || e.amount || 0) || 0), 0);
+  }, [expenses]);
+
+  const serviceCount = useMemo(() => {
+    return (expenses || []).filter((e) => e && (e.category === 'Vehicle Maintenance' || e.workshopName || e.vehicleRegNo)).length;
+  }, [expenses]);
+
+  const tripClaimsTotal = useMemo(() => {
+    return (expenses || [])
+      .filter((e) => e && e.category !== 'Vehicle Maintenance' && !e.workshopName && (e.status === 'Approved' || e.status === 'Paid'))
+      .reduce((sum, e) => sum + (parseFloat(e.approvedAmount || e.amount || 0) || 0), 0);
+  }, [expenses]);
+
+  const tripClaimsCount = useMemo(() => {
+    return (expenses || []).filter((e) => e && e.category !== 'Vehicle Maintenance' && !e.workshopName).length;
   }, [expenses]);
 
   const totalPending = useMemo(() => {
@@ -316,11 +356,11 @@ export function ExpensesList() {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
           <h1 style={{ fontSize: '1.625rem', fontWeight: 800, color: '#090d16', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <Receipt size={26} color="#2C3480" />
-            Trip Expenses &amp; Driver Claims
+            <Wrench size={26} color="#2C3480" />
+            Fleet Maintenance &amp; Operational Expenses
           </h1>
           <p style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.25rem' }}>
-            Audit toll bills, Fastag deductions, parking receipts and settle approved driver disbursements.
+            Track car servicing, periodic maintenance, workshop repair bills, and audit driver trip claims &amp; disbursements.
           </p>
         </div>
 
@@ -365,15 +405,59 @@ export function ExpensesList() {
           <Button
             variant="primary"
             style={{ backgroundColor: '#2C3480' }}
-            leftIcon={<Plus size={16} />}
-            onClick={() => setIsAddModalOpen(true)}
+            leftIcon={<Wrench size={16} />}
+            onClick={() => {
+              setExpenseType('service');
+              setIsAddModalOpen(true);
+            }}
           >
-            Log Expense Voucher
+            Log Car Service
+          </Button>
+
+          <Button
+            variant="outline"
+            leftIcon={<Plus size={16} />}
+            onClick={() => {
+              setExpenseType('trip');
+              setIsAddModalOpen(true);
+            }}
+          >
+            Log Trip Expense
           </Button>
         </div>
       </div>
 
-      {/* KPI Cards (Exact Financial Formulas from Section 12) */}
+      {/* Scope Segmented Filter (All vs Car Service vs Trip Claims) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', backgroundColor: '#ffffff', padding: '0.5rem 0.75rem', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+        {[
+          { id: 'all', label: `All Operational Expenses (${expenses.length})` },
+          { id: 'service', label: `🚗 Car Services & Maintenance (${serviceCount})` },
+          { id: 'trip', label: `🛣️ Trip & Driver Claims (${tripClaimsCount})` }
+        ].map((tab) => (
+          <button
+            key={tab.id}
+            onClick={() => {
+              setScopeFilter(tab.id);
+              setCurrentPage(1);
+            }}
+            style={{
+              padding: '0.5rem 1rem',
+              borderRadius: '8px',
+              border: 'none',
+              cursor: 'pointer',
+              fontWeight: 700,
+              fontSize: '0.8125rem',
+              transition: 'all 0.15s ease',
+              backgroundColor: scopeFilter === tab.id ? '#2C3480' : 'transparent',
+              color: scopeFilter === tab.id ? '#ffffff' : '#64748b'
+            }}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
         <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase' }}>
@@ -388,6 +472,30 @@ export function ExpensesList() {
         </div>
 
         <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#b45309', textTransform: 'uppercase' }}>
+            Car Services &amp; Maintenance
+          </div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#b45309', marginTop: '0.35rem' }}>
+            ₹{(serviceTotal || 0).toLocaleString('en-IN')}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+            {serviceCount} vehicle services logged
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase' }}>
+            Driver Trip Claims
+          </div>
+          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#2563eb', marginTop: '0.35rem' }}>
+            ₹{(tripClaimsTotal || 0).toLocaleString('en-IN')}
+          </div>
+          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
+            {tripClaimsCount} trip claims settled/approved
+          </div>
+        </div>
+
+        <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase' }}>
             Pending Approval ({pendingCount})
           </div>
@@ -395,31 +503,7 @@ export function ExpensesList() {
             ₹{(totalPending || 0).toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-            ⚠️ Awaiting review — not in profit
-          </div>
-        </div>
-
-        <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase' }}>
-            Total Paid to Drivers
-          </div>
-          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#2563eb', marginTop: '0.35rem' }}>
-            ₹{(totalPaid || 0).toLocaleString('en-IN')}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-            Bank / UPI transactions settled
-          </div>
-        </div>
-
-        <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
-          <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#dc2626', textTransform: 'uppercase' }}>
-            Outstanding Payments
-          </div>
-          <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#dc2626', marginTop: '0.35rem' }}>
-            ₹{(outstandingSettlement || 0).toLocaleString('en-IN')}
-          </div>
-          <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-            Approved - Paid balance due
+            ⚠️ Awaiting review &amp; audit
           </div>
         </div>
       </div>
@@ -469,7 +553,7 @@ export function ExpensesList() {
                 <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                 <input
                   type="text"
-                  placeholder="Search by ID, Driver, Booking..."
+                  placeholder="Search by Vehicle, Workshop, Driver, Bill #..."
                   value={searchTerm}
                   onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }}
                   style={{
@@ -491,9 +575,19 @@ export function ExpensesList() {
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '1.25rem' }}>
           {paginatedExpenses.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', padding: '3.5rem 2rem', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
-              <Receipt size={40} style={{ color: '#cbd5e1', margin: '0 auto 0.75rem' }} />
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>No expense claims found</h3>
-              <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Try changing the status or category filter.</p>
+              <Wrench size={40} style={{ color: '#cbd5e1', margin: '0 auto 0.75rem' }} />
+              <h3 style={{ fontSize: '1.1rem', fontWeight: 700, color: '#1e293b' }}>
+                {scopeFilter === 'service'
+                  ? 'No car service or fleet maintenance records found'
+                  : scopeFilter === 'trip'
+                  ? 'No trip claims found'
+                  : 'No operational expenses found'}
+              </h3>
+              <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.25rem' }}>
+                {scopeFilter === 'service'
+                  ? 'Click "+ Log Car Service" above to record periodic maintenance, oil changes, or workshop repairs.'
+                  : 'Try changing the status, scope, or category filter above.'}
+              </p>
             </div>
           ) : (
             paginatedExpenses.map((exp, eIdx) => {

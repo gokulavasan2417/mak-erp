@@ -54,7 +54,8 @@ try {
     'mak_driver_notifs_v7',
     'mak_shared_bookings_v9_clean',
     'mak_shared_drivers_v9_clean',
-    'mak_shared_vehicles_v9_clean'
+    'mak_shared_vehicles_v9_clean',
+    'mak_shared_expenses_v10_atlas'
   ].forEach((k) => localStorage.removeItem(k));
 } catch {}
 
@@ -63,7 +64,7 @@ const STORAGE_KEYS = {
   DRIVERS: 'mak_shared_drivers_v10_atlas',
   VEHICLES: 'mak_shared_vehicles_v10_atlas',
   ASSIGNMENTS: 'mak_shared_assignments_v10_atlas',
-  EXPENSES: 'mak_shared_expenses_v10_atlas',
+  EXPENSES: 'mak_shared_expenses_v11_fleet_service',
   PAYMENTS: 'mak_shared_payments_v10_atlas',
   INVOICES: 'mak_shared_invoices_v10_atlas',
   ADMIN_NOTIFS: 'mak_admin_notifs_v10_atlas',
@@ -651,10 +652,10 @@ export function TripProvider({ children }) {
     return init;
   });
 
-  // 5. Shared Expenses
+  // 5. Shared Expenses (Includes Car Services, Fleet Maintenance & Trip Claims)
   const [expenses, setExpenses] = useState(() => {
     const stored = loadStoredJson(STORAGE_KEYS.EXPENSES, null);
-    if (stored) return stored;
+    if (stored && Array.isArray(stored) && stored.length > 0) return stored;
     return cleanInitialExpenses();
   });
 
