@@ -184,16 +184,22 @@ export function FinanceDashboard() {
     // Dynamic calculations for Weekly / Monthly / Yearly / Custom periods
     const recRev = filteredBookings
       .filter((b) => b.bookingStatus === 'Completed')
-      .reduce((sum, b) => sum + (parseFloat(b.totalAmount || b.pricing || b.fare || 0) || 0), 0);
+      .reduce((sum, b) => sum + (parseFloat(b.amountPaid ?? b.advancePaid ?? 0) || 0), 0);
 
     const cashColl = filteredBookings
       .filter((b) => b.bookingStatus !== 'Cancelled')
-      .reduce((sum, b) => sum + (parseFloat(b.advancePaid || 0) || 0), 0);
+      .reduce((sum, b) => sum + (parseFloat(b.amountPaid ?? b.advancePaid ?? 0) || 0), 0);
 
-    const cashOnCompleted = filteredBookings
+    const rec = filteredBookings
       .filter((b) => b.bookingStatus === 'Completed')
-      .reduce((sum, b) => sum + (parseFloat(b.advancePaid || 0) || 0), 0);
-    const rec = Math.max(0, recRev - cashOnCompleted);
+      .reduce((sum, b) => {
+        const tot = parseFloat(b.totalAmount || b.pricing || b.fare || 0) || 0;
+        const pd = parseFloat(b.amountPaid ?? b.advancePaid ?? 0) || 0;
+        const bal = b.balanceAmount !== undefined && b.balanceAmount !== null && !isNaN(Number(b.balanceAmount))
+          ? parseFloat(b.balanceAmount)
+          : Math.max(0, tot - pd);
+        return sum + Math.max(0, bal);
+      }, 0);
 
     const approvedTrip = filteredExpenses
       .filter((e) => e.bookingId && (e.status === 'Approved' || e.status === 'Paid'))
@@ -556,7 +562,7 @@ export function FinanceDashboard() {
 
         <div style={{ backgroundColor: '#ffffff', padding: '1.15rem', borderRadius: '14px', border: '1px solid #e2e8f0' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>BENDINGS</span>
+            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b' }}>BENDINGS / PENDING AMOUNT</span>
             <div style={{ padding: '0.4rem', borderRadius: '8px', backgroundColor: '#fff7ed', color: '#ea580c' }}>
               <AlertTriangle size={18} />
             </div>

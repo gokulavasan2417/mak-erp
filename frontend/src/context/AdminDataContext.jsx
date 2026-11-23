@@ -333,10 +333,14 @@ export function AdminDataProvider({ children }) {
             (sum, b) => sum + Number(b.totalAmount || b.fareAmount || b.fare || b.pricing || b.totalFare || 0),
             0
           );
-          const outstanding = matchedBookings.reduce(
-            (sum, b) => sum + Number(b.balanceDue || b.balanceAmount || 0),
-            0
-          );
+          const outstanding = matchedBookings.reduce((sum, b) => {
+            const tot = Number(b.totalAmount || b.fareAmount || b.fare || b.pricing || b.totalFare || 0);
+            const paid = Number(b.amountPaid ?? b.advancePaid ?? 0);
+            const bal = b.balanceAmount !== undefined && b.balanceAmount !== null && !isNaN(Number(b.balanceAmount))
+              ? Number(b.balanceAmount)
+              : Math.max(0, tot - paid);
+            return sum + Math.max(0, bal);
+          }, 0);
           if (c.totalBookings !== matchedBookings.length || c.totalSpent !== totalSpent || c.outstandingBalance !== outstanding) {
             hasNewOrUpdated = true;
             return {
@@ -386,10 +390,14 @@ export function AdminDataProvider({ children }) {
             (sum, b) => sum + Number(b.totalAmount || b.fareAmount || b.fare || b.pricing || b.totalFare || 0),
             0
           );
-          const outstanding = matchedBookings.reduce(
-            (sum, b) => sum + Number(b.balanceDue || b.balanceAmount || 0),
-            0
-          );
+          const outstanding = matchedBookings.reduce((sum, b) => {
+            const tot = Number(b.totalAmount || b.fareAmount || b.fare || b.pricing || b.totalFare || 0);
+            const paid = Number(b.amountPaid ?? b.advancePaid ?? 0);
+            const bal = b.balanceAmount !== undefined && b.balanceAmount !== null && !isNaN(Number(b.balanceAmount))
+              ? Number(b.balanceAmount)
+              : Math.max(0, tot - paid);
+            return sum + Math.max(0, bal);
+          }, 0);
 
           const newCustomer = {
             id: `CUST-${String(maxIdNum).padStart(3, '0')}`,

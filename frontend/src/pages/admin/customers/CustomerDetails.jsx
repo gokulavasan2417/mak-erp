@@ -1,5 +1,5 @@
 // MAK Tours & Travels ERP - Customer Profile & Trip History
-import React from 'react';
+import React, { useState } from 'react';
 import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
@@ -17,19 +17,22 @@ import {
   AlertCircle,
   Plus,
   ShieldCheck,
-  CreditCard
+  CreditCard,
+  CheckCircle2
 } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { StatusBadge } from '../../../components/ui/StatusBadge';
 import { useAdminData } from '../../../context/AdminDataContext';
 import { formatDateDMY } from '../../../utils/dateUtils';
+import { CollectPaymentModal } from '../../../components/modals/CollectPaymentModal';
 
 export function CustomerDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
   const { customers = [], bookings = [], invoices = [] } = useAdminData();
+  const [paymentModalBooking, setPaymentModalBooking] = useState(null);
 
   const customer = (customers || []).find(
     (c) => c.id === id || c._id === id || (c.id && String(c.id).toLowerCase() === String(id || '').toLowerCase())
@@ -66,24 +69,65 @@ export function CustomerDetails() {
     return false;
   });
 
+  // Set of linked booking IDs and references to cross-match invoices
+  const customerBookingsIds = new Set(customerBookings.map((b) => b.id || b._id));
+  const customerBookingsRefs = new Set(customerBookings.map((b) => b.bookingNumber).filter(Boolean));
+
   // Linked invoices
   const customerInvoices = (invoices || []).filter(
     (inv) =>
       (inv.customerId && (inv.customerId === customer.id || inv.customerId === customer._id)) ||
-      (inv.customerName && customer.name && inv.customerName.toLowerCase().includes(customer.name.toLowerCase().substring(0, 5)))
+      (inv.customerName && customer.name && inv.customerName.toLowerCase().includes(customer.name.toLowerCase().substring(0, 5))) ||
+      customerBookingsIds.has(inv.bookingId) ||
+      customerBookingsRefs.has(inv.bookingRef) ||
+      customerBookingsRefs.has(inv.bookingNumber)
   );
 
-  const totalBookingsCount = Number(customer.totalBookings ?? customerBookings.length ?? 0);
+  const totalBookingsCount = customerBookings.length > 0 ? customerBookings.length : Number(customer.totalBookings || 0);
 
   const computedTotalSpent = customerBookings.reduce((sum, bk) => {
     return sum + Number(bk.totalAmount || bk.fareAmount || bk.fare || bk.pricing || 0);
   }, 0);
-  const totalSpent = Number(customer.totalSpent ?? computedTotalSpent ?? 0);
+  const totalSpent = customerBookings.length > 0 ? computedTotalSpent : Number(customer.totalSpent || 0);
 
   const computedOutstanding = customerBookings.reduce((sum, bk) => {
-    return sum + Number(bk.balanceDue || bk.balanceAmount || 0);
+    const tot = Number(bk.totalAmount || bk.fareAmount || bk.fare || bk.pricing || 0);
+    const paid = Number(bk.amountPaid ?? bk.advancePaid ?? 0);
+    const bal = bk.balanceAmount !== undefined && bk.balanceAmount !== null && !isNaN(Number(bk.balanceAmount))
+      ? Number(bk.balanceAmount)
+      : Math.max(0, tot - paid);
+    return sum + Math.max(0, bal);
   }, 0);
-  const outstandingBalance = Number(customer.outstandingBalance ?? computedOutstanding ?? 0);
+  const outstandingBalance = customerBookings.length > 0 ? computedOutstanding : Number(customer.outstandingBalance || 0);
+
+  const handleSettleInvoice = (inv) => {
+    // Find matching booking to settle via booking lifecycle
+    const matchingBooking = customerBookings.find(
+      (b) => b.id === inv.bookingId || b.bookingNumber === inv.bookingRef || b.bookingNumber === inv.bookingNumber
+    );
+
+    if (matchingBooking) {
+      setPaymentModalBooking(matchingBooking);
+    } else {
+      // Create synthetic booking wrapper to pass to CollectPaymentModal
+      const invTotal = Number(inv.totalAmount || inv.amount || inv.subtotal || 0);
+      const invPaid = Number(inv.amountPaid ?? inv.advancePaid ?? 0);
+      const invBal = inv.balanceDue !== undefined && !isNaN(Number(inv.balanceDue))
+        ? Number(inv.balanceDue)
+        : Math.max(0, invTotal - invPaid);
+
+      setPaymentModalBooking({
+        id: inv.bookingId || inv.bookingRef || inv.id,
+        bookingNumber: inv.bookingRef || inv.invoiceNumber || inv.id,
+        customerName: customer.name,
+        customerPhone: customer.phone,
+        totalAmount: invTotal,
+        advancePaid: invPaid,
+        amountPaid: invPaid,
+        balanceAmount: invBal
+      });
+    }
+  };
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', maxWidth: '1200px', margin: '0 auto' }}>
@@ -263,45 +307,90 @@ export function CustomerDetails() {
                     <th style={{ padding: '0.75rem 1rem' }}>Category & Route</th>
                     <th style={{ padding: '0.75rem 1rem' }}>Dates</th>
                     <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Fare (INR)</th>
-                    <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Status</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Balance Due</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Trip Status</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Payment</th>
                   </tr>
                 </thead>
                 <tbody>
                   {customerBookings.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
+                      <td colSpan={7} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
                         No specific recent trips logged under this customer account.
                       </td>
                     </tr>
                   ) : (
-                    customerBookings.map((bk) => (
-                      <tr
-                        key={bk.id}
-                        style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
-                        onClick={() => navigate(`/admin/bookings/${bk.id}`, { state: { from: location.pathname } })}
-                        onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
-                        onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
-                      >
-                        <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#2C3480' }}>
-                          {bk.bookingNumber || bk.id}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem' }}>
-                          <div style={{ fontWeight: 600, color: '#0f172a' }}>{bk.category || bk.bookingCategory || bk.bookingType || 'Trip'}</div>
-                          <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                            {bk.pickupLocation || bk.fromLocation || 'Pickup'} &rarr; {bk.dropLocation || bk.toLocation || bk.destination || 'Drop'}
-                          </div>
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', color: '#475569' }}>
-                          {formatDateDMY(bk.journeyDate || bk.startDate || bk.pickupDate || bk.travelDate) || 'Scheduled'}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
-                          ₹{Number(bk.fareAmount || bk.totalAmount || bk.fare || bk.totalFare || 0).toLocaleString('en-IN')}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
-                          <StatusBadge status={bk.bookingStatus || bk.status || 'Confirmed'} />
-                        </td>
-                      </tr>
-                    ))
+                    customerBookings.map((bk) => {
+                      const totalBkFare = Number(bk.fareAmount || bk.totalAmount || bk.fare || bk.totalFare || bk.pricing || 0);
+                      const paidBk = Number(bk.amountPaid ?? bk.advancePaid ?? 0);
+                      const balBk = bk.balanceAmount !== undefined && bk.balanceAmount !== null && !isNaN(Number(bk.balanceAmount))
+                        ? Number(bk.balanceAmount)
+                        : Math.max(0, totalBkFare - paidBk);
+                      const isBkPaid = balBk <= 0 || bk.paymentStatus === 'Paid';
+
+                      return (
+                        <tr
+                          key={bk.id}
+                          style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
+                          onClick={() => navigate(`/admin/bookings/${bk.id}`, { state: { from: location.pathname } })}
+                          onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
+                          onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
+                        >
+                          <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#2C3480' }}>
+                            {bk.bookingNumber || bk.id}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem' }}>
+                            <div style={{ fontWeight: 600, color: '#0f172a' }}>{bk.category || bk.bookingCategory || bk.bookingType || 'Trip'}</div>
+                            <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                              {bk.pickupLocation || bk.fromLocation || 'Pickup'} &rarr; {bk.dropLocation || bk.toLocation || bk.destination || 'Drop'}
+                            </div>
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', fontSize: '0.8rem', color: '#475569' }}>
+                            {formatDateDMY(bk.journeyDate || bk.startDate || bk.pickupDate || bk.travelDate) || 'Scheduled'}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 600, color: '#0f172a' }}>
+                            ₹{totalBkFare.toLocaleString('en-IN')}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: balBk > 0 ? '#ea580c' : '#16a34a' }}>
+                            {balBk > 0 ? `₹${balBk.toLocaleString('en-IN')}` : '₹0'}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                            <StatusBadge status={bk.bookingStatus || bk.status || 'Confirmed'} />
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                            {balBk > 0 ? (
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setPaymentModalBooking(bk);
+                                }}
+                                style={{
+                                  backgroundColor: '#16a34a',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '0.35rem 0.65rem',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem',
+                                  boxShadow: '0 1px 2px rgba(0,0,0,0.1)'
+                                }}
+                              >
+                                <CheckCircle2 size={13} /> Collect ₹{balBk.toLocaleString('en-IN')}
+                              </button>
+                            ) : (
+                              <span style={{ fontSize: '0.75rem', fontWeight: 700, color: '#16a34a', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                                <CheckCircle2 size={13} /> Paid in Full
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -323,33 +412,66 @@ export function CustomerDetails() {
                     <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Total (₹)</th>
                     <th style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>Balance Due (₹)</th>
                     <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Payment Status</th>
+                    <th style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>Action</th>
                   </tr>
                 </thead>
                 <tbody>
                   {customerInvoices.length === 0 ? (
                     <tr>
-                      <td colSpan={5} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
+                      <td colSpan={6} style={{ padding: '2rem', textAlign: 'center', color: '#94a3b8' }}>
                         No separate corporate invoices pending.
                       </td>
                     </tr>
                   ) : (
-                    customerInvoices.map((inv) => (
-                      <tr key={inv.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
-                          {inv.invoiceNumber || inv.id}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', color: '#475569' }}>{formatDateDMY(inv.date || inv.invoiceDate) || 'N/A'}</td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 600 }}>
-                          ₹{Number(inv.totalAmount || 0).toLocaleString('en-IN')}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: (inv.balanceDue || 0) > 0 ? '#dc2626' : '#16a34a' }}>
-                          ₹{Number(inv.balanceDue || 0).toLocaleString('en-IN')}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
-                          <StatusBadge status={inv.status || inv.paymentStatus || 'Paid'} />
-                        </td>
-                      </tr>
-                    ))
+                    customerInvoices.map((inv) => {
+                      const invTotal = Number(inv.totalAmount || inv.amount || inv.subtotal || 0);
+                      const invPaid = Number(inv.amountPaid ?? inv.advancePaid ?? (inv.status === 'Paid' ? invTotal : 0));
+                      const invBal = inv.balanceDue !== undefined && !isNaN(Number(inv.balanceDue))
+                        ? Number(inv.balanceDue)
+                        : Math.max(0, invTotal - invPaid);
+                      const isInvPaid = invBal <= 0 || inv.status === 'Paid' || inv.paymentStatus === 'Paid';
+
+                      return (
+                        <tr key={inv.id || inv._id || inv.invoiceNumber} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#0f172a', fontFamily: 'monospace' }}>
+                            {inv.invoiceNumber || inv.id}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', color: '#475569' }}>{formatDateDMY(inv.date || inv.invoiceDate || inv.createdAt) || 'N/A'}</td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 600 }}>
+                            ₹{invTotal.toLocaleString('en-IN')}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 700, color: invBal > 0 ? '#dc2626' : '#16a34a' }}>
+                            ₹{invBal.toLocaleString('en-IN')}
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                            <StatusBadge status={isInvPaid ? 'Paid' : (inv.status || 'Partially Paid')} />
+                          </td>
+                          <td style={{ padding: '0.75rem 1rem', textAlign: 'center' }}>
+                            {invBal > 0 && (
+                              <button
+                                type="button"
+                                onClick={() => handleSettleInvoice(inv)}
+                                style={{
+                                  backgroundColor: '#16a34a',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  borderRadius: '6px',
+                                  padding: '0.3rem 0.55rem',
+                                  fontSize: '0.75rem',
+                                  fontWeight: 700,
+                                  cursor: 'pointer',
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '0.25rem'
+                                }}
+                              >
+                                <CheckCircle2 size={12} /> Settle
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
@@ -357,6 +479,15 @@ export function CustomerDetails() {
           </Card>
         </div>
       </div>
+
+      {/* Collect Balance Payment Modal */}
+      {paymentModalBooking && (
+        <CollectPaymentModal
+          isOpen={Boolean(paymentModalBooking)}
+          onClose={() => setPaymentModalBooking(null)}
+          booking={paymentModalBooking}
+        />
+      )}
     </div>
   );
 }

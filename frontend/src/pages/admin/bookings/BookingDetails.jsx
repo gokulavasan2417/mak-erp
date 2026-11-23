@@ -45,6 +45,7 @@ import { Badge } from '../../../components/ui/Badge';
 import { Modal } from '../../../components/ui/Modal';
 import { Input } from '../../../components/ui/Input';
 import { AssignCarDriverModal } from '../../../components/admin/AssignCarDriverModal';
+import { CollectPaymentModal } from '../../../components/modals/CollectPaymentModal';
 import { useTripContext } from '../../../context/TripContext';
 import { useToast } from '../../../context/ToastContext';
 import { bookingService } from '../../../services';
@@ -255,6 +256,9 @@ export function BookingDetails() {
   // Cancellation Modal
   const [isCancelModalOpen, setIsCancelModalOpen] = useState(false);
   const [cancelReason, setCancelReason] = useState('Client requested cancellation');
+
+  // Collect Payment Modal
+  const [isCollectPaymentOpen, setIsCollectPaymentOpen] = useState(false);
 
   // Internal Notes
   const [adminNoteInput, setAdminNoteInput] = useState('');
@@ -757,6 +761,29 @@ export function BookingDetails() {
                       ? '✓ No balance due'
                       : `₹${effectiveBal.toLocaleString('en-IN')} pending collection`}
                   </div>
+                  {effectiveBal > 0 && (
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => setIsCollectPaymentOpen(true)}
+                      style={{
+                        backgroundColor: '#16a34a',
+                        borderColor: '#15803d',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        marginTop: '0.65rem',
+                        width: '100%',
+                        fontSize: '0.8rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '0.4rem',
+                        boxShadow: '0 1px 3px rgba(22, 163, 74, 0.25)'
+                      }}
+                    >
+                      <CheckCircle2 size={15} /> Collect Balance / Mark as Paid
+                    </Button>
+                  )}
                 </div>
               </div>
             </div>
@@ -2031,6 +2058,30 @@ export function BookingDetails() {
           </div>
         </div>
       </Modal>
+
+      {/* Collect Balance Payment Modal */}
+      {isCollectPaymentOpen && (
+        <CollectPaymentModal
+          isOpen={isCollectPaymentOpen}
+          onClose={() => setIsCollectPaymentOpen(false)}
+          booking={booking}
+          onSuccess={(res) => {
+            setRemoteBooking((prev) => {
+              if (!prev) return prev;
+              const newAdv = (prev.amountPaid || prev.advancePaid || 0) + res.amount;
+              const newBal = Math.max(0, (prev.totalAmount || 0) - newAdv);
+              return {
+                ...prev,
+                advancePaid: newAdv,
+                amountPaid: newAdv,
+                balanceAmount: newBal,
+                balanceDue: newBal,
+                paymentStatus: newBal === 0 ? 'Paid' : 'Partially Paid'
+              };
+            });
+          }}
+        />
+      )}
     </div>
   );
 }

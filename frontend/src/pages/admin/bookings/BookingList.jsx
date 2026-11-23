@@ -35,6 +35,7 @@ import { Pagination } from '../../../components/ui/Pagination';
 import { Dropdown } from '../../../components/ui/Dropdown';
 import { Modal } from '../../../components/ui/Modal';
 import { AssignCarDriverModal } from '../../../components/admin/AssignCarDriverModal';
+import { CollectPaymentModal } from '../../../components/modals/CollectPaymentModal';
 import { useAdminData } from '../../../context/AdminDataContext';
 import { useToast } from '../../../context/ToastContext';
 import { bookingCategories, bookingStatuses, paymentStatuses } from '../../../data';
@@ -47,6 +48,7 @@ export function BookingList() {
   const { bookings, drivers, vehicles, confirmTripAssignment, assignVehicle, cancelBooking, markBookingCompleted, updateBooking, startTrip, isDriverAvailable, isVehicleAvailable } = useAdminData();
 
   const [downloadingBookingId, setDownloadingBookingId] = useState(null);
+  const [paymentModalBooking, setPaymentModalBooking] = useState(null);
 
   const handleDownloadInvoicePdf = async (b) => {
     if (!b) return;
@@ -1012,6 +1014,18 @@ export function BookingList() {
                           </Button>
                         )}
 
+                        {!isSettled && balanceAmount > 0 && (
+                          <Button
+                            size="sm"
+                            variant="primary"
+                            style={{ backgroundColor: '#16a34a', borderColor: '#15803d', color: '#ffffff', fontWeight: 700 }}
+                            onClick={() => setPaymentModalBooking(b)}
+                            leftIcon={<CheckCircle2 size={13} />}
+                          >
+                            Collect ₹{balanceAmount.toLocaleString('en-IN')}
+                          </Button>
+                        )}
+
                         <button
                           type="button"
                           onClick={() => setFullModalBooking(b)}
@@ -1320,6 +1334,12 @@ export function BookingList() {
                                 onClick: () => markBookingCompleted(b.id)
                               },
                               {
+                                label: 'Collect Balance Payment',
+                                icon: CheckCircle2,
+                                disabled: (b.balanceAmount !== undefined ? b.balanceAmount : Math.max(0, (b.totalAmount || 0) - (b.advancePaid || 0))) <= 0,
+                                onClick: () => setPaymentModalBooking(b)
+                              },
+                              {
                                 label: 'Download Invoice (PDF)',
                                 icon: Download,
                                 disabled: b.bookingStatus !== 'Completed' && b.tripStatus !== 'Completed',
@@ -1459,6 +1479,20 @@ export function BookingList() {
                     leftIcon={<Download size={14} />}
                   >
                     {downloadingBookingId === (fullModalBooking.bookingNumber || fullModalBooking.refId || fullModalBooking.id || fullModalBooking._id) ? 'Generating...' : 'Download Invoice (PDF)'}
+                  </Button>
+                )}
+                {((fullModalBooking.balanceAmount !== undefined ? fullModalBooking.balanceAmount : Math.max(0, (fullModalBooking.totalAmount || 0) - (fullModalBooking.advancePaid || 0))) > 0) && (
+                  <Button
+                    variant="primary"
+                    style={{ backgroundColor: '#16a34a', borderColor: '#15803d', fontWeight: 700 }}
+                    onClick={() => {
+                      const target = fullModalBooking;
+                      setFullModalBooking(null);
+                      setPaymentModalBooking(target);
+                    }}
+                    leftIcon={<CheckCircle2 size={14} />}
+                  >
+                    Collect Balance Payment
                   </Button>
                 )}
                 <Button variant="outline" onClick={() => setFullModalBooking(null)}>Close</Button>
@@ -1667,6 +1701,15 @@ export function BookingList() {
         booking={dispatchModalBooking}
         onSuccess={() => setDispatchModalBooking(null)}
       />
+
+      {/* 5. Collect Balance Payment Modal */}
+      {paymentModalBooking && (
+        <CollectPaymentModal
+          isOpen={Boolean(paymentModalBooking)}
+          onClose={() => setPaymentModalBooking(null)}
+          booking={paymentModalBooking}
+        />
+      )}
     </div>
   );
 }

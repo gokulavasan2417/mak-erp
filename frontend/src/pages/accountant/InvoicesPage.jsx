@@ -305,7 +305,7 @@ export function InvoicesPage() {
                         )}
                       </td>
                       <td style={{ padding: '0.85rem 1.25rem', fontWeight: 700, color: '#0f172a' }}>
-                        ₹{Number(inv.totalAmount || 0).toLocaleString('en-IN')}
+                        ₹{Number(inv.totalAmount || inv.amount || inv.subtotal || 0).toLocaleString('en-IN')}
                       </td>
                       <td style={{ padding: '0.85rem 1.25rem', fontWeight: 800, color: inv.balanceDue > 0 ? '#ea580c' : '#059669' }}>
                         ₹{Number(inv.balanceDue || 0).toLocaleString('en-IN')}

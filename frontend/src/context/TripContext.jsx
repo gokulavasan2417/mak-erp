@@ -2630,16 +2630,18 @@ export function TripProvider({ children }) {
       return false;
     }
 
-    const curAdvance = parseFloat(booking.advancePaid) || 0;
-    const total = parseFloat(booking.totalAmount) || 0;
-    const curBalance = Math.max(0, total - curAdvance);
+    const curAdvance = parseFloat(booking.amountPaid ?? booking.advancePaid ?? 0) || 0;
+    const total = parseFloat(booking.totalAmount || booking.pricing || booking.fare || booking.totalFare || 0) || 0;
+    const curBalance = booking.balanceAmount !== undefined && booking.balanceAmount !== null && !isNaN(Number(booking.balanceAmount))
+      ? parseFloat(booking.balanceAmount)
+      : Math.max(0, total - curAdvance);
 
-    if (payAmt > curBalance) {
+    if (payAmt > curBalance + 0.5) {
       toast.error(`Payment amount (₹${payAmt}) cannot exceed remaining balance due (₹${curBalance})`);
       return false;
     }
 
-    const newAdvance = curAdvance + payAmt;
+    const newAdvance = Math.min(total, curAdvance + payAmt);
     const newBalance = Math.max(0, total - newAdvance);
     const newStatus = newBalance === 0 ? 'Paid' : 'Partially Paid';
     const nowFormatted = new Date().toISOString().replace('T', ' ').substring(0, 16);
@@ -2664,7 +2666,7 @@ export function TripProvider({ children }) {
       transactionRef: reference || `REF-${Date.now().toString().slice(-6)}`,
       paymentReference: reference || `REF-${Date.now().toString().slice(-6)}`,
       type: 'Customer Payment',
-      paymentType: 'Balance',
+      paymentType: 'Balance Settlement',
       category: 'Booking Balance Payment',
       status: 'Completed',
       date: todayStr,
@@ -2675,7 +2677,7 @@ export function TripProvider({ children }) {
     // 2. Update Booking
     setBookings((prev) =>
       prev.map((b) => {
-        if (b.id === booking.id) {
+        if (b.id === booking.id || b.bookingNumber === booking.bookingNumber) {
           const updatedTimeline = [
             ...(b.assignmentTimeline || []),
             {
@@ -2689,8 +2691,11 @@ export function TripProvider({ children }) {
           return {
             ...b,
             advancePaid: newAdvance,
+            amountPaid: newAdvance,
             balanceAmount: newBalance,
+            balanceDue: newBalance,
             paymentStatus: newStatus,
+            paymentType: newBalance === 0 ? 'Full Payment (100% Settled)' : b.paymentType,
             assignmentTimeline: updatedTimeline,
             history: updatedTimeline
           };
@@ -2701,16 +2706,29 @@ export function TripProvider({ children }) {
 
     // 3. Update Invoice
     setInvoices((prev) =>
-      prev.map((inv) =>
-        inv.bookingId === booking.id
-          ? {
-              ...inv,
-              advancePaid: newAdvance,
-              balanceDue: newBalance,
-              status: newBalance === 0 ? 'Paid' : 'Partially Paid'
-            }
-          : inv
-      )
+      prev.map((inv) => {
+        const isMatch =
+          inv.bookingId === booking.id ||
+          inv.bookingRef === booking.bookingNumber ||
+          inv.bookingRef === booking.id ||
+          inv.bookingNumber === booking.bookingNumber ||
+          (inv.customerId && booking.customerId && inv.customerId === booking.customerId && (Number(inv.amount) === total || Number(inv.totalAmount) === total));
+
+        if (isMatch) {
+          const invTotal = Number(inv.totalAmount || inv.amount || total);
+          return {
+            ...inv,
+            totalAmount: invTotal,
+            amount: invTotal,
+            advancePaid: newAdvance,
+            amountPaid: newAdvance,
+            balanceDue: newBalance,
+            status: newBalance === 0 ? 'Paid' : 'Partially Paid',
+            paymentStatus: newBalance === 0 ? 'Paid' : 'Partially Paid'
+          };
+        }
+        return inv;
+      })
     );
 
     // 4. Persist Payment & Updated Booking to MongoDB Atlas
@@ -2728,6 +2746,7 @@ export function TripProvider({ children }) {
     if (bookingService?.update) {
       bookingService.update(booking.id, {
         advancePaid: newAdvance,
+        amountPaid: newAdvance,
         balanceAmount: newBalance,
         paymentStatus: newStatus
       }).catch(() => {});
@@ -3833,21 +3852,32 @@ export function TripProvider({ children }) {
 
   // --- 11. FINANCIAL METRICS (Strict Formulations from Prompt) ---
   const financialMetrics = useMemo(() => {
-    // 1. Recognised Revenue: sum of totalAmount for bookings with bookingStatus 'Completed' ONLY!
+    // 1. Recognised Revenue: sum of collected revenue (amountPaid / advancePaid) for bookings with bookingStatus 'Completed'
     const recognisedRevenue = bookings
       .filter((b) => b.bookingStatus === 'Completed')
-      .reduce((sum, b) => sum + (parseFloat(b.totalAmount) || 0), 0);
+      .reduce((sum, b) => sum + (parseFloat(b.amountPaid ?? b.advancePaid ?? 0) || 0), 0);
 
-    // 2. Cash Collected: sum of advancePaid on non-cancelled bookings + balance payments made
+    // Total Completed Trip Fare
+    const totalCompletedTripFare = bookings
+      .filter((b) => b.bookingStatus === 'Completed')
+      .reduce((sum, b) => sum + (parseFloat(b.totalAmount || b.pricing || 0) || 0), 0);
+
+    // 2. Cash Collected: sum of amounts paid on all non-cancelled bookings
     const cashCollected = bookings
       .filter((b) => b.bookingStatus !== 'Cancelled')
-      .reduce((sum, b) => sum + (parseFloat(b.advancePaid) || 0), 0);
+      .reduce((sum, b) => sum + (parseFloat(b.amountPaid ?? b.advancePaid ?? 0) || 0), 0);
 
-    // 3. Receivables: recognisedRevenue – amounts collected on completed bookings
-    const cashOnCompleted = bookings
+    // 3. Receivables / BENDINGS: uncollected balance on completed bookings
+    const receivables = bookings
       .filter((b) => b.bookingStatus === 'Completed')
-      .reduce((sum, b) => sum + (parseFloat(b.advancePaid) || 0), 0);
-    const receivables = Math.max(0, recognisedRevenue - cashOnCompleted);
+      .reduce((sum, b) => {
+        const tot = parseFloat(b.totalAmount || b.pricing || 0) || 0;
+        const pd = parseFloat(b.amountPaid ?? b.advancePaid ?? 0) || 0;
+        const bal = b.balanceAmount !== undefined && b.balanceAmount !== null && !isNaN(Number(b.balanceAmount))
+          ? parseFloat(b.balanceAmount)
+          : Math.max(0, tot - pd);
+        return sum + Math.max(0, bal);
+      }, 0);
 
     // 4. Refunds Due: amounts paid on Cancelled bookings
     const refundsDue = bookings
