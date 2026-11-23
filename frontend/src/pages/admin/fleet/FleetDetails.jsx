@@ -1,6 +1,6 @@
 // MAK Tours & Travels ERP - Vehicle Details Page
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Car,
   ArrowLeft,
@@ -34,6 +34,7 @@ import { CAR_IMAGE_PRESETS } from './FleetList';
 export function FleetDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const { vehicles, updateVehicle, updateVehicleStatus } = useAdminData();
 
@@ -433,7 +434,7 @@ export function FleetDetails() {
                 </div>
 
                 {vehicle.currentBookingId && (
-                  <Button size="sm" variant="outline" onClick={() => navigate(`/admin/bookings/${vehicle.currentBookingId}`)}>
+                  <Button size="sm" variant="outline" onClick={() => navigate(`/admin/bookings/${vehicle.currentBookingId}`, { state: { from: location.pathname } })}>
                     View Trip
                   </Button>
                 )}

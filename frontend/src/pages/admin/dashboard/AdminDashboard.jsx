@@ -1,6 +1,6 @@
 // MAK Tours & Travels ERP - Admin Operational Dashboard
 import React, { useMemo, useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   Calendar,
   Clock,
@@ -42,6 +42,7 @@ import { formatDateDMY } from '../../../utils/dateUtils';
 
 export function AdminDashboard() {
   const navigate = useNavigate();
+  const location = useLocation();
   const {
     bookings = [],
     vehicles = [],
@@ -873,7 +874,7 @@ export function AdminDashboard() {
                 bookings.slice(0, 5).map((booking) => (
                   <div
                     key={booking.id}
-                    onClick={() => navigate(`/admin/bookings/${booking.id}`)}
+                    onClick={() => navigate(`/admin/bookings/${booking.id}`, { state: { from: location.pathname } })}
                     style={{
                       display: 'flex',
                       alignItems: 'center',
@@ -963,7 +964,7 @@ export function AdminDashboard() {
                   .map((b) => (
                     <div
                       key={b.id}
-                      onClick={() => navigate(`/admin/bookings/${b.id}`)}
+                      onClick={() => navigate(`/admin/bookings/${b.id}`, { state: { from: location.pathname } })}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
@@ -1032,7 +1033,7 @@ export function AdminDashboard() {
                       title: `Assign Driver for ${b.id} (${b.bookingCategory || 'Booking'})`,
                       desc: `Departure ${b.journeyDate || 'Scheduled'}. Passenger: ${b.customerName || 'Customer'}`,
                       actionLabel: 'Assign Driver',
-                      onClick: () => navigate(`/admin/bookings/${b.id}`)
+                      onClick: () => navigate(`/admin/bookings/${b.id}`, { state: { from: location.pathname } })
                     });
                   });
 

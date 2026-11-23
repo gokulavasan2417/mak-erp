@@ -3,7 +3,7 @@
 // Incorporates complete trip lifecycle: Driver Assignment, Acceptance Timeline, Vehicle Reservation & Trip Expenses
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   Calendar,
   Clock,
@@ -53,7 +53,18 @@ import { formatDateDMY } from '../../../utils/dateUtils';
 export function BookingDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
+
+  const handleBack = () => {
+    if (location.state?.from) {
+      navigate(location.state.from);
+    } else if (window.history.length > 1) {
+      navigate(-1);
+    } else {
+      navigate('/admin/bookings');
+    }
+  };
 
   const {
     bookings,
@@ -301,8 +312,8 @@ export function BookingDetails() {
       <Card style={{ padding: '3rem', textAlign: 'center' }}>
         <h2 style={{ color: 'var(--text-main, #090d16)' }}>Booking Not Found</h2>
         <p style={{ color: 'var(--text-muted, #64748b)' }}>The booking #{id} does not exist or has been removed.</p>
-        <Button variant="primary" onClick={() => navigate('/admin/bookings')}>
-          Back to Bookings
+        <Button variant="primary" onClick={handleBack}>
+          Back
         </Button>
       </Card>
     );
@@ -508,7 +519,7 @@ export function BookingDetails() {
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-          <Button variant="ghost" onClick={() => navigate('/admin/bookings')} style={{ padding: '0.5rem' }}>
+          <Button variant="ghost" onClick={handleBack} style={{ padding: '0.5rem' }} aria-label="Go Back">
             <ArrowLeft size={18} />
           </Button>
           <div>
@@ -642,7 +653,13 @@ export function BookingDetails() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.875rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ color: '#64748b' }}>Customer Name:</span>
-            <span style={{ fontWeight: 800, color: '#0f172a' }}>{booking.customerName || booking.fullName || 'Valued Guest'}</span>
+            {booking.customerId ? (
+              <Link to={`/admin/customers/${booking.customerId}`} style={{ fontWeight: 800, color: '#2C3480', textDecoration: 'none' }}>
+                {booking.customerName || booking.fullName || 'Valued Guest'} &rarr;
+              </Link>
+            ) : (
+              <span style={{ fontWeight: 800, color: '#0f172a' }}>{booking.customerName || booking.fullName || 'Valued Guest'}</span>
+            )}
           </div>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
             <span style={{ color: '#64748b' }}>Contact Number:</span>

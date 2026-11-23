@@ -1,6 +1,6 @@
 // MAK Tours & Travels ERP - Payment Ledger & Transactions
 import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import {
   CreditCard,
   IndianRupee,
@@ -29,6 +29,7 @@ import { formatDateDMY } from '../../../utils/dateUtils';
 
 export function PaymentsList() {
   const navigate = useNavigate();
+  const location = useLocation();
   const adminData = useAdminData() || {};
   const { payments = [], addPayment = () => {}, bookings = [] } = adminData;
 
@@ -486,7 +487,7 @@ export function PaymentsList() {
                             <FileText size={13} style={{ color: '#2C3480' }} /> Linked Booking
                           </span>
                           <span
-                            onClick={() => navigate(`/admin/bookings/${pay.bookingId || pay.bookingNumber}`)}
+                            onClick={() => navigate(`/admin/bookings/${pay.bookingId || pay.bookingNumber}`, { state: { from: location.pathname } })}
                             style={{ fontWeight: 700, color: '#2C3480', cursor: 'pointer', textDecoration: 'underline' }}
                           >
                             #{pay.bookingNumber || pay.bookingId}
@@ -527,7 +528,7 @@ export function PaymentsList() {
                         style={{ backgroundColor: '#2C3480', fontWeight: 700 }}
                         onClick={() => {
                           if (pay.bookingId || pay.bookingNumber) {
-                            navigate(`/admin/bookings/${pay.bookingId || pay.bookingNumber}`);
+                            navigate(`/admin/bookings/${pay.bookingId || pay.bookingNumber}`, { state: { from: location.pathname } });
                           }
                         }}
                       >
@@ -608,7 +609,7 @@ export function PaymentsList() {
                           <div style={{ fontSize: '0.825rem', color: '#1e293b' }}>{pay.category || 'Trip Advance'}</div>
                           {(pay.bookingId || pay.bookingNumber) && (
                             <span
-                              onClick={() => navigate(`/admin/bookings/${pay.bookingId || pay.bookingNumber}`)}
+                              onClick={() => navigate(`/admin/bookings/${pay.bookingId || pay.bookingNumber}`, { state: { from: location.pathname } })}
                               style={{ fontSize: '0.75rem', color: '#2C3480', fontWeight: 600, cursor: 'pointer', textDecoration: 'underline' }}
                             >
                               Booking #{pay.bookingNumber || pay.bookingId}

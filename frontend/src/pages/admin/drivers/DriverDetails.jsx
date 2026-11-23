@@ -1,6 +1,6 @@
 // MAK Tours & Travels ERP - Driver Profile Details
 import React, { useState, useMemo } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom';
 import {
   UserCheck,
   ArrowLeft,
@@ -28,6 +28,7 @@ import { useAdminData } from '../../../context/AdminDataContext';
 export function DriverDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { drivers = [], updateDriverStatus, updateDriver, bookings = [] } = useAdminData();
   const [previewDoc, setPreviewDoc] = useState(null);
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
@@ -555,7 +556,7 @@ export function DriverDetails() {
                     {assignedBookings.map((b) => (
                       <tr
                         key={b.id || b._id}
-                        onClick={() => navigate(`/admin/bookings/${b.id || b.bookingNumber || b._id}`)}
+                        onClick={() => navigate(`/admin/bookings/${b.id || b.bookingNumber || b._id}`, { state: { from: location.pathname } })}
                         style={{ borderBottom: '1px solid var(--border-light, #e2e8f0)', cursor: 'pointer' }}
                       >
                         <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#2C3480' }}>

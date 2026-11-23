@@ -1,6 +1,6 @@
 // MAK Tours & Travels ERP - Customer Profile & Trip History
 import React from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   ArrowLeft,
   Edit,
@@ -28,6 +28,7 @@ import { formatDateDMY } from '../../../utils/dateUtils';
 export function CustomerDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { customers = [], bookings = [], invoices = [] } = useAdminData();
 
   const customer = (customers || []).find(
@@ -277,7 +278,7 @@ export function CustomerDetails() {
                       <tr
                         key={bk.id}
                         style={{ borderBottom: '1px solid #f1f5f9', cursor: 'pointer' }}
-                        onClick={() => navigate(`/admin/bookings/${bk.id}`)}
+                        onClick={() => navigate(`/admin/bookings/${bk.id}`, { state: { from: location.pathname } })}
                         onMouseEnter={(e) => (e.currentTarget.style.backgroundColor = '#f8fafc')}
                         onMouseLeave={(e) => (e.currentTarget.style.backgroundColor = 'transparent')}
                       >

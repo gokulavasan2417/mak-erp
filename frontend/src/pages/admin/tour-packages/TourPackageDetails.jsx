@@ -1,6 +1,6 @@
 // MAK Tours & Travels ERP - Tour Package Details
 import React, { useState } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams, useNavigate, useLocation } from 'react-router-dom';
 import {
   Compass,
   ArrowLeft,
@@ -27,6 +27,7 @@ import { TOUR_IMAGE_PRESETS } from './TourPackageList';
 export function TourPackageDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const toast = useToast();
   const { tourPackages, togglePackageStatus, updateTourPackage, bookings } = useAdminData();
 
@@ -316,7 +317,7 @@ export function TourPackageDetails() {
                     {linkedBookings.map((b) => (
                       <tr
                         key={b.id}
-                        onClick={() => navigate(`/admin/bookings/${b.id}`)}
+                        onClick={() => navigate(`/admin/bookings/${b.id}`, { state: { from: location.pathname } })}
                         style={{ borderBottom: '1px solid var(--border-light, #e2e8f0)', cursor: 'pointer' }}
                       >
                         <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#2C3480' }}>{b.id}</td>
