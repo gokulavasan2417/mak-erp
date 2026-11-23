@@ -16,10 +16,12 @@ import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
 import { Modal } from '../../components/ui/Modal';
 import { Input } from '../../components/ui/Input';
+import { useToast } from '../../context/ToastContext';
 import { useDriverData } from '../../context/DriverDataContext';
 import { initialDriverProfile } from '../../data/driverPortalData';
 
 export function DriverAvailability() {
+  const toast = useToast();
   const {
     driver,
     trips = [],
@@ -31,9 +33,30 @@ export function DriverAvailability() {
   const safeDriver = driver ? { ...initialDriverProfile, ...driver } : initialDriverProfile;
   const safeLeaves = Array.isArray(leaveRequests) ? leaveRequests : [];
 
+  // Today's date YYYY-MM-DD
+  const todayStr = useMemo(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  }, []);
+
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
-  const [leaveStart, setLeaveStart] = useState('2026-11-20');
-  const [leaveEnd, setLeaveEnd] = useState('2026-11-22');
+  const [leaveStart, setLeaveStart] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
+  const [leaveEnd, setLeaveEnd] = useState(() => {
+    const d = new Date();
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
+  });
   const [leaveReason, setLeaveReason] = useState('');
 
   // Format date to DD-MM-YYYY
@@ -69,15 +92,6 @@ export function DriverAvailability() {
     }
     return String(dateVal);
   };
-
-  // Today's date YYYY-MM-DD
-  const todayStr = useMemo(() => {
-    const d = new Date();
-    const y = d.getFullYear();
-    const m = String(d.getMonth() + 1).padStart(2, '0');
-    const day = String(d.getDate()).padStart(2, '0');
-    return `${y}-${m}-${day}`;
-  }, []);
 
   // 14 days schedule matrix for November 2026
   const scheduleDays = useMemo(() => [
@@ -116,7 +130,7 @@ export function DriverAvailability() {
       const matchedLeave = safeLeaves.find((l) => {
         const start = normalizeDateStr(l.startDate);
         const end = normalizeDateStr(l.endDate) || start;
-        const isApproved = l.status === 'Approved' || !l.status || l.status === 'Pending';
+        const isApproved = l.status === 'Approved';
         return isApproved && itemDate >= start && itemDate <= end;
       });
 
@@ -239,12 +253,23 @@ export function DriverAvailability() {
 
   const handleLeaveSubmit = (e) => {
     e.preventDefault();
-    if (!leaveReason.trim()) return;
+    if (!leaveStart || leaveStart < todayStr) {
+      toast.error('Past leave dates cannot be applied. Please choose today or a future date.');
+      return;
+    }
+    if (!leaveEnd || leaveEnd < leaveStart) {
+      toast.error('End date cannot be earlier than start date.');
+      return;
+    }
+    if (!leaveReason.trim()) {
+      toast.error('Please enter a reason for the leave request.');
+      return;
+    }
 
     requestLeave({
       startDate: leaveStart,
       endDate: leaveEnd,
-      reason: leaveReason
+      reason: leaveReason.trim()
     });
     setIsLeaveModalOpen(false);
     setLeaveReason('');
@@ -332,7 +357,11 @@ export function DriverAvailability() {
             size="md"
             style={{ backgroundColor: '#2C3480', borderColor: '#2C3480' }}
             leftIcon={<Plus size={16} />}
-            onClick={() => setIsLeaveModalOpen(true)}
+            onClick={() => {
+              setLeaveStart(todayStr);
+              setLeaveEnd(todayStr);
+              setIsLeaveModalOpen(true);
+            }}
           >
             Request Planned Leave
           </Button>
@@ -531,8 +560,8 @@ export function DriverAvailability() {
                         {req.reason}
                       </td>
                       <td style={{ padding: '0.875rem 1.25rem' }}>
-                        <Badge variant={req.status === 'Approved' ? 'success' : 'warning'} dot size="sm">
-                          {req.status}
+                        <Badge variant={req.status === 'Approved' ? 'success' : req.status === 'Rejected' ? 'danger' : 'warning'} dot size="sm">
+                          {req.status || 'Under Review'}
                         </Badge>
                       </td>
                     </tr>
@@ -561,15 +590,22 @@ export function DriverAvailability() {
         }
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
             <div>
               <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
-                Start Date *
+                Start Date * (Today or Future)
               </label>
               <Input
                 type="date"
+                min={todayStr}
                 value={leaveStart}
-                onChange={(e) => setLeaveStart(e.target.value)}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setLeaveStart(val);
+                  if (leaveEnd < val) {
+                    setLeaveEnd(val);
+                  }
+                }}
               />
             </div>
 
@@ -579,6 +615,7 @@ export function DriverAvailability() {
               </label>
               <Input
                 type="date"
+                min={leaveStart || todayStr}
                 value={leaveEnd}
                 onChange={(e) => setLeaveEnd(e.target.value)}
               />

@@ -1,7 +1,7 @@
 // MAK Tours & Travels ERP - Staff Attendance Management & Biometric Duty Logs
 // Comprehensive tracking, daily shift punches, monthly matrix & leave regularization for all staff
-import React, { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Calendar,
   Clock,
@@ -29,7 +29,8 @@ import {
   Briefcase,
   Layers,
   Sparkles,
-  Banknote
+  Banknote,
+  Car
 } from 'lucide-react';
 import { Breadcrumbs } from '../../../components/common/Breadcrumbs';
 import { Card, CardHeader, CardBody } from '../../../components/ui/Card';
@@ -43,10 +44,13 @@ import { departments, shifts, punchLocations } from '../../../data/employeesData
 
 export function AttendanceManagement() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const {
     employees = [],
     staffAttendance = [],
     staffLeaveRequests = [],
+    driverLeaveRequests = [],
+    approveDriverLeave,
     markAttendance,
     bulkMarkAttendance,
     updateAttendanceRecord,
@@ -56,8 +60,17 @@ export function AttendanceManagement() {
 
   // Active Date Filter (defaults to today)
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().substring(0, 10));
-  const [activeTab, setActiveTab] = useState('daily'); // 'daily', 'matrix', 'leaves', 'roster'
+  const initialTab = searchParams.get('tab') || 'daily';
+  const [activeTab, setActiveTab] = useState(initialTab); // 'daily', 'matrix', 'leaves', 'roster'
+  const [leaveScope, setLeaveScope] = useState('all'); // 'all', 'drivers', 'staff'
   const [viewMode, setViewMode] = useState('cards'); // 'cards' or 'table'
+
+  useEffect(() => {
+    const tabParam = searchParams.get('tab');
+    if (tabParam && ['daily', 'matrix', 'leaves', 'roster'].includes(tabParam)) {
+      setActiveTab(tabParam);
+    }
+  }, [searchParams]);
 
   // Search & Filter
   const [searchTerm, setSearchTerm] = useState('');
@@ -76,13 +89,16 @@ export function AttendanceManagement() {
   const [editPunchMethod, setEditPunchMethod] = useState('Biometric Fingerprint');
   const [editRemarks, setEditRemarks] = useState('');
 
+  // Today's date string YYYY-MM-DD
+  const todayStr = useMemo(() => new Date().toISOString().substring(0, 10), []);
+
   // New Leave Modal
   const [isLeaveModalOpen, setIsLeaveModalOpen] = useState(false);
   const [leaveEmpId, setLeaveEmpId] = useState('');
   const [leaveType, setLeaveType] = useState('Casual Leave');
-  const [leaveFrom, setLeaveFrom] = useState('2026-11-12');
-  const [leaveTo, setLeaveTo] = useState('2026-11-13');
-  const [leaveTotalDays, setLeaveTotalDays] = useState(2);
+  const [leaveFrom, setLeaveFrom] = useState(() => new Date().toISOString().substring(0, 10));
+  const [leaveTo, setLeaveTo] = useState(() => new Date().toISOString().substring(0, 10));
+  const [leaveTotalDays, setLeaveTotalDays] = useState(1);
   const [leaveReason, setLeaveReason] = useState('');
 
   // Bulk Clock-In Confirmation Modal
@@ -366,6 +382,15 @@ export function AttendanceManagement() {
   const handleCreateLeave = (e) => {
     e.preventDefault();
     if (!leaveEmpId) return;
+
+    if (!leaveFrom || leaveFrom < todayStr) {
+      alert('Leave cannot be applied for past dates. Please choose today or a future date.');
+      return;
+    }
+    if (!leaveTo || leaveTo < leaveFrom) {
+      alert('End date cannot be earlier than start date.');
+      return;
+    }
 
     const targetEmp = employees.find((emp) => emp.id === leaveEmpId || emp.code === leaveEmpId);
     if (!targetEmp) return;
@@ -832,7 +857,14 @@ export function AttendanceManagement() {
             transition: 'all 0.15s ease'
           }}
         >
-          <CalendarDays size={16} /> Leave Approvals ({staffLeaveRequests.filter((l) => l.status === 'Pending').length} Pending)
+          <CalendarDays size={16} /> Leave Approvals
+          {((driverLeaveRequests || []).filter((l) => l.status === 'Under Review' || l.status === 'Pending').length + staffLeaveRequests.filter((l) => l.status === 'Pending').length) > 0 ? (
+            <span style={{ backgroundColor: '#ef4444', color: '#ffffff', padding: '0.1rem 0.5rem', borderRadius: '999px', fontSize: '0.75rem', fontWeight: 800 }}>
+              {((driverLeaveRequests || []).filter((l) => l.status === 'Under Review' || l.status === 'Pending').length + staffLeaveRequests.filter((l) => l.status === 'Pending').length)} Pending
+            </span>
+          ) : (
+            <span style={{ color: activeTab === 'leaves' ? '#c7cefa' : '#94a3b8', fontSize: '0.75rem' }}>(0)</span>
+          )}
         </button>
 
         <button
@@ -1641,105 +1673,303 @@ export function AttendanceManagement() {
           TAB 3: LEAVE APPLICATIONS & AUTHORIZATIONS
           ======================================================== */}
       {activeTab === 'leaves' && (
-        <Card>
-          <CardHeader
-            title="Staff Leave Requests & Authorizations"
-            subtitle="Review pending leave requests, medical absences, and casual leaves submitted by staff members."
-            action={
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setIsLeaveModalOpen(true)}
-                leftIcon={<Plus size={14} />}
-                style={{ backgroundColor: '#2C3480', borderColor: '#2C3480', fontWeight: 800 }}
+        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Sub-filter Navigation Pills */}
+          <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', backgroundColor: '#ffffff', padding: '0.875rem 1.25rem', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'center' }}>
+              <button
+                type="button"
+                onClick={() => setLeaveScope('all')}
+                style={{
+                  padding: '0.45rem 0.95rem',
+                  borderRadius: '20px',
+                  border: '1px solid',
+                  borderColor: leaveScope === 'all' ? '#2C3480' : '#e2e8f0',
+                  backgroundColor: leaveScope === 'all' ? '#2C3480' : '#ffffff',
+                  color: leaveScope === 'all' ? '#ffffff' : '#475569',
+                  fontSize: '0.8125rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.15s ease'
+                }}
               >
-                Submit Staff Leave
-              </Button>
-            }
-          />
-          <CardBody style={{ padding: '1.25rem' }}>
-            <div style={{ overflowX: 'auto' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
-                    <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Leave ID</th>
-                    <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Staff Member</th>
-                    <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Department</th>
-                    <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Leave Type</th>
-                    <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Duration &amp; Dates</th>
-                    <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Reason</th>
-                    <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Status</th>
-                    <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569', textAlign: 'right' }}>Authorization</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {staffLeaveRequests.map((leave) => {
-                    const isPending = leave.status === 'Pending';
-                    const isApproved = leave.status === 'Approved';
+                All Applications ({(driverLeaveRequests || []).length + (staffLeaveRequests || []).length})
+              </button>
 
-                    return (
-                      <tr key={leave.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
-                        <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', fontWeight: 800, color: '#2C3480' }}>
-                          {leave.id}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem' }}>
-                          <strong style={{ color: '#0f172a', display: 'block' }}>{leave.employeeName}</strong>
-                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>#{leave.employeeCode}</span>
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', color: '#475569' }}>
-                          {leave.department}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#0f172a' }}>
-                          {leave.leaveType}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem' }}>
-                          <div style={{ fontWeight: 700, color: '#0f172a' }}>{leave.totalDays} Day(s)</div>
-                          <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                            {leave.fromDate} &rarr; {leave.toDate}
-                          </span>
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', maxWidth: '240px', color: '#475569', fontSize: '0.8125rem' }}>
-                          {leave.reason}
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem' }}>
-                          <Badge variant={isApproved ? 'success' : isPending ? 'warning' : 'danger'} size="sm">
-                            {leave.status}
-                          </Badge>
-                        </td>
-                        <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
-                          {isPending ? (
-                            <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                              <Button
-                                variant="primary"
-                                size="xs"
-                                style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', fontWeight: 800 }}
-                                onClick={() => approveStaffLeave(leave.id, true, 'Approved by Operations Lead')}
-                              >
-                                Approve
-                              </Button>
-                              <Button
-                                variant="outline"
-                                size="xs"
-                                style={{ color: '#dc2626', borderColor: '#fca5a5' }}
-                                onClick={() => approveStaffLeave(leave.id, false, 'Declined due to duty shortage')}
-                              >
-                                Reject
-                              </Button>
-                            </div>
-                          ) : (
-                            <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                              {leave.reviewedBy || 'Admin Desk'}
-                            </span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+              <button
+                type="button"
+                onClick={() => setLeaveScope('drivers')}
+                style={{
+                  padding: '0.45rem 0.95rem',
+                  borderRadius: '20px',
+                  border: '1px solid',
+                  borderColor: leaveScope === 'drivers' ? '#2C3480' : '#e2e8f0',
+                  backgroundColor: leaveScope === 'drivers' ? '#2C3480' : '#ffffff',
+                  color: leaveScope === 'drivers' ? '#ffffff' : '#475569',
+                  fontSize: '0.8125rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Car size={14} /> Driver Leave Requests ({(driverLeaveRequests || []).length})
+                {(driverLeaveRequests || []).filter((l) => l.status === 'Under Review' || l.status === 'Pending').length > 0 && (
+                  <span style={{ backgroundColor: leaveScope === 'drivers' ? '#ffffff' : '#ef4444', color: leaveScope === 'drivers' ? '#ef4444' : '#ffffff', padding: '0.05rem 0.4rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 800 }}>
+                    {(driverLeaveRequests || []).filter((l) => l.status === 'Under Review' || l.status === 'Pending').length} Pending
+                  </span>
+                )}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setLeaveScope('staff')}
+                style={{
+                  padding: '0.45rem 0.95rem',
+                  borderRadius: '20px',
+                  border: '1px solid',
+                  borderColor: leaveScope === 'staff' ? '#2C3480' : '#e2e8f0',
+                  backgroundColor: leaveScope === 'staff' ? '#2C3480' : '#ffffff',
+                  color: leaveScope === 'staff' ? '#ffffff' : '#475569',
+                  fontSize: '0.8125rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.4rem',
+                  transition: 'all 0.15s ease'
+                }}
+              >
+                <Users size={14} /> Staff &amp; Office Requests ({(staffLeaveRequests || []).length})
+                {(staffLeaveRequests || []).filter((l) => l.status === 'Pending').length > 0 && (
+                  <span style={{ backgroundColor: leaveScope === 'staff' ? '#ffffff' : '#ef4444', color: leaveScope === 'staff' ? '#ef4444' : '#ffffff', padding: '0.05rem 0.4rem', borderRadius: '999px', fontSize: '0.7rem', fontWeight: 800 }}>
+                    {(staffLeaveRequests || []).filter((l) => l.status === 'Pending').length} Pending
+                  </span>
+                )}
+              </button>
             </div>
-          </CardBody>
-        </Card>
+
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={() => setIsLeaveModalOpen(true)}
+              leftIcon={<Plus size={14} />}
+              style={{ backgroundColor: '#2C3480', borderColor: '#2C3480', fontWeight: 800 }}
+            >
+              Submit Staff Leave
+            </Button>
+          </div>
+
+          {/* SECTION A: DRIVER LEAVE APPLICATIONS */}
+          {(leaveScope === 'all' || leaveScope === 'drivers') && (
+            <Card>
+              <CardHeader
+                title="Driver Planned Leave & Duty Absence Requests"
+                subtitle="Review and authorize planned leaves, standby relief, and time-off filed by drivers."
+                action={
+                  <span style={{ fontSize: '0.8125rem', fontWeight: 700, color: '#2C3480', backgroundColor: '#eef2ff', padding: '0.25rem 0.75rem', borderRadius: '20px' }}>
+                    {(driverLeaveRequests || []).filter((l) => l.status === 'Under Review' || l.status === 'Pending').length} Action Required
+                  </span>
+                }
+              />
+              <CardBody style={{ padding: '1.25rem' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Leave ID</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Driver Member</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Role / Category</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Leave Type</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Duration &amp; Dates</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Reason</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Status</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569', textAlign: 'right' }}>Authorization</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(driverLeaveRequests || []).length === 0 ? (
+                        <tr>
+                          <td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                            No driver leave requests found.
+                          </td>
+                        </tr>
+                      ) : (
+                        (driverLeaveRequests || []).map((leave) => {
+                          const isPending = leave.status === 'Under Review' || leave.status === 'Pending';
+                          const isApproved = leave.status === 'Approved';
+
+                          return (
+                            <tr key={leave.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', fontWeight: 800, color: '#2C3480' }}>
+                                {leave.id}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem' }}>
+                                <strong style={{ color: '#0f172a', display: 'block' }}>{leave.driverName || 'Driver'}</strong>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>#{leave.driverBadge || leave.driverId || 'DRV-001'}</span>
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', color: '#475569' }}>
+                                {leave.role || 'Senior Tour Driver'}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                                {leave.leaveType || 'Planned Leave'}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem' }}>
+                                <div style={{ fontWeight: 700, color: '#0f172a' }}>{leave.totalDays || 1} Day(s)</div>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                  {leave.startDate} &rarr; {leave.endDate}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', maxWidth: '240px', color: '#475569', fontSize: '0.8125rem' }}>
+                                {leave.reason || 'Personal Reason'}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem' }}>
+                                <Badge variant={isApproved ? 'success' : isPending ? 'warning' : 'danger'} dot size="sm">
+                                  {leave.status || 'Under Review'}
+                                </Badge>
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
+                                {isPending ? (
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                    <Button
+                                      variant="primary"
+                                      size="xs"
+                                      style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', fontWeight: 800 }}
+                                      onClick={() => approveDriverLeave(leave.id, true, 'Approved by Operations Admin')}
+                                    >
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="xs"
+                                      style={{ color: '#dc2626', borderColor: '#fca5a5' }}
+                                      onClick={() => approveDriverLeave(leave.id, false, 'Declined due to duty assignment schedule')}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isApproved ? '#16a34a' : '#dc2626', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                                    {isApproved ? <><Check size={14} /> Approved by Admin</> : <><X size={14} /> Rejected</>}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          {/* SECTION B: STAFF LEAVE APPLICATIONS */}
+          {(leaveScope === 'all' || leaveScope === 'staff') && (
+            <Card>
+              <CardHeader
+                title="Staff Leave Requests & Authorizations"
+                subtitle="Review pending leave requests, medical absences, and casual leaves submitted by staff members."
+              />
+              <CardBody style={{ padding: '1.25rem' }}>
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: '#f8fafc', borderBottom: '1px solid #e2e8f0', textAlign: 'left' }}>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Leave ID</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Staff Member</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Department</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Leave Type</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Duration &amp; Dates</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Reason</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569' }}>Status</th>
+                        <th style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#475569', textAlign: 'right' }}>Authorization</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {staffLeaveRequests.length === 0 ? (
+                        <tr>
+                          <td colSpan={8} style={{ padding: '2rem', textAlign: 'center', color: '#64748b' }}>
+                            No staff leave requests found.
+                          </td>
+                        </tr>
+                      ) : (
+                        staffLeaveRequests.map((leave) => {
+                          const isPending = leave.status === 'Pending';
+                          const isApproved = leave.status === 'Approved';
+
+                          return (
+                            <tr key={leave.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                              <td style={{ padding: '0.75rem 1rem', fontFamily: 'monospace', fontWeight: 800, color: '#2C3480' }}>
+                                {leave.id}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem' }}>
+                                <strong style={{ color: '#0f172a', display: 'block' }}>{leave.employeeName}</strong>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>#{leave.employeeCode}</span>
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', color: '#475569' }}>
+                                {leave.department}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#0f172a' }}>
+                                {leave.leaveType}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem' }}>
+                                <div style={{ fontWeight: 700, color: '#0f172a' }}>{leave.totalDays} Day(s)</div>
+                                <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                  {leave.fromDate} &rarr; {leave.toDate}
+                                </span>
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', maxWidth: '240px', color: '#475569', fontSize: '0.8125rem' }}>
+                                {leave.reason}
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem' }}>
+                                <Badge variant={isApproved ? 'success' : isPending ? 'warning' : 'danger'} size="sm">
+                                  {leave.status}
+                                </Badge>
+                              </td>
+                              <td style={{ padding: '0.75rem 1rem', textAlign: 'right' }}>
+                                {isPending ? (
+                                  <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                    <Button
+                                      variant="primary"
+                                      size="xs"
+                                      style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', fontWeight: 800 }}
+                                      onClick={() => approveStaffLeave(leave.id, true, 'Approved by Operations Lead')}
+                                    >
+                                      Approve
+                                    </Button>
+                                    <Button
+                                      variant="outline"
+                                      size="xs"
+                                      style={{ color: '#dc2626', borderColor: '#fca5a5' }}
+                                      onClick={() => approveStaffLeave(leave.id, false, 'Declined due to duty shortage')}
+                                    >
+                                      Reject
+                                    </Button>
+                                  </div>
+                                ) : (
+                                  <span style={{ fontSize: '0.75rem', color: '#64748b' }}>
+                                    {leave.reviewedBy || 'Admin Desk'}
+                                  </span>
+                                )}
+                              </td>
+                            </tr>
+                          );
+                        })
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </CardBody>
+            </Card>
+          )}
+        </div>
       )}
 
       {/* ========================================================
@@ -2042,15 +2272,20 @@ export function AttendanceManagement() {
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '0.75rem' }}>
               <div>
                 <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
-                  From Date *
+                  From Date * (Today or Future)
                 </label>
                 <input
                   type="date"
+                  min={todayStr}
                   value={leaveFrom}
-                  onChange={(e) => setLeaveFrom(e.target.value)}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    setLeaveFrom(val);
+                    if (leaveTo < val) setLeaveTo(val);
+                  }}
                   style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem' }}
                 />
               </div>
@@ -2061,6 +2296,7 @@ export function AttendanceManagement() {
                 </label>
                 <input
                   type="date"
+                  min={leaveFrom || todayStr}
                   value={leaveTo}
                   onChange={(e) => setLeaveTo(e.target.value)}
                   style={{ width: '100%', padding: '0.55rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem' }}

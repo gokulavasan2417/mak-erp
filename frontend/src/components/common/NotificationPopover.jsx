@@ -1,9 +1,11 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck, Clock } from 'lucide-react';
 import { useAdminData } from '../../context/AdminDataContext';
 import { useDriverData } from '../../context/DriverDataContext';
 
 export function NotificationPopover({ portal = 'admin' }) {
+  const navigate = useNavigate();
   const [isOpen, setIsOpen] = useState(false);
   const popoverRef = useRef(null);
 
@@ -36,9 +38,14 @@ export function NotificationPopover({ portal = 'admin' }) {
     }
   };
 
-  const handleMarkOne = (id) => {
-    if (activeCtx?.markNotificationRead) {
-      activeCtx.markNotificationRead(id);
+  const handleMarkOne = (item) => {
+    if (activeCtx?.markNotificationRead && item?.id) {
+      activeCtx.markNotificationRead(item.id);
+    }
+    const targetUrl = item?.actionUrl || item?.actionLink || item?.link;
+    if (targetUrl) {
+      setIsOpen(false);
+      navigate(targetUrl);
     }
   };
 
@@ -155,7 +162,7 @@ export function NotificationPopover({ portal = 'admin' }) {
               notifications.map((item) => (
                 <div
                   key={item.id}
-                  onClick={() => handleMarkOne(item.id)}
+                  onClick={() => handleMarkOne(item)}
                   style={{
                     padding: '0.875rem 1rem',
                     borderBottom: '1px solid var(--border-light)',

@@ -29,7 +29,7 @@ export function DriverDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const location = useLocation();
-  const { drivers = [], updateDriverStatus, updateDriver, bookings = [] } = useAdminData();
+  const { drivers = [], updateDriverStatus, updateDriver, bookings = [], driverLeaveRequests = [], approveDriverLeave } = useAdminData();
   const [previewDoc, setPreviewDoc] = useState(null);
   const [isRateModalOpen, setIsRateModalOpen] = useState(false);
   const [editRateValue, setEditRateValue] = useState(1500);
@@ -54,6 +54,17 @@ export function DriverDetails() {
       return Boolean(matchesId || matchesName);
     });
   }, [bookings, driver]);
+
+  const driverLeaves = useMemo(() => {
+    if (!driver) return [];
+    return (driverLeaveRequests || []).filter((l) =>
+      l.driverId === driver.id ||
+      l.driverId === driver.driverId ||
+      l.driverBadge === driver.id ||
+      l.driverBadge === driver.driverBadgeId ||
+      (l.driverId === 'DRV-001' && (driver.id === 'DRV-001' || driver.driverId === 'DRV-001'))
+    );
+  }, [driverLeaveRequests, driver]);
 
   const documentsList = useMemo(() => {
     if (!driver) return [];
@@ -515,6 +526,75 @@ export function DriverDetails() {
                   </div>
                 </div>
               </div>
+            </CardBody>
+          </Card>
+
+          {/* Driver Planned Leave & Holiday Requests */}
+          <Card>
+            <CardHeader
+              title={`Planned Leave Requests (${driverLeaves.length})`}
+              subtitle="Holiday & rest cycle applications"
+            />
+            <CardBody style={{ padding: 0 }}>
+              {driverLeaves.length === 0 ? (
+                <div style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--text-muted, #64748b)', fontSize: '0.8125rem' }}>
+                  No active or past leave requests for this driver.
+                </div>
+              ) : (
+                <div style={{ overflowX: 'auto' }}>
+                  <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.8125rem' }}>
+                    <thead>
+                      <tr style={{ backgroundColor: 'var(--bg-app, #f8fafc)', borderBottom: '1px solid var(--border-light, #e2e8f0)', textAlign: 'left' }}>
+                        <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, color: '#475569' }}>REF</th>
+                        <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, color: '#475569' }}>DATES</th>
+                        <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, color: '#475569' }}>REASON</th>
+                        <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, color: '#475569' }}>STATUS</th>
+                        <th style={{ padding: '0.625rem 0.875rem', fontWeight: 700, color: '#475569', textAlign: 'right' }}>ACTION</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {driverLeaves.map((l) => {
+                        const isPending = l.status === 'Under Review' || l.status === 'Pending';
+                        const isApproved = l.status === 'Approved';
+                        return (
+                          <tr key={l.id} style={{ borderBottom: '1px solid var(--border-light, #e2e8f0)' }}>
+                            <td style={{ padding: '0.625rem 0.875rem', fontFamily: 'monospace', fontWeight: 700, color: '#2C3480' }}>
+                              {l.id}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', fontWeight: 600 }}>
+                              {l.startDate} to {l.endDate} ({l.totalDays || 1}d)
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', color: '#475569' }}>
+                              {l.reason}
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem' }}>
+                              <Badge variant={isApproved ? 'success' : isPending ? 'warning' : 'danger'} size="sm">
+                                {l.status}
+                              </Badge>
+                            </td>
+                            <td style={{ padding: '0.625rem 0.875rem', textAlign: 'right' }}>
+                              {isPending ? (
+                                <div style={{ display: 'inline-flex', gap: '0.35rem', justifyContent: 'flex-end' }}>
+                                  <Button size="xs" variant="primary" style={{ backgroundColor: '#16a34a', borderColor: '#16a34a', fontWeight: 800 }} onClick={() => approveDriverLeave(l.id, true)}>
+                                    Approve
+                                  </Button>
+                                  <Button size="xs" variant="outline" style={{ color: '#dc2626', borderColor: '#fca5a5' }} onClick={() => approveDriverLeave(l.id, false)}>
+                                    Reject
+                                  </Button>
+                                </div>
+                              ) : (
+                                <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isApproved ? '#16a34a' : '#dc2626' }}>
+                                  {isApproved ? 'Approved' : 'Declined'}
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              )}
             </CardBody>
           </Card>
 

@@ -68,8 +68,28 @@ const STORAGE_KEYS = {
   PAYMENTS: 'mak_shared_payments_v10_atlas',
   INVOICES: 'mak_shared_invoices_v10_atlas',
   ADMIN_NOTIFS: 'mak_admin_notifs_v10_atlas',
-  DRIVER_NOTIFS: 'mak_driver_notifs_v10_atlas'
+  DRIVER_NOTIFS: 'mak_driver_notifs_v10_atlas',
+  DRIVER_LEAVES: 'mak_driver_leaves_v10_atlas'
 };
+
+const initialDriverLeaves = [
+  {
+    id: 'LV-01',
+    driverId: 'DRV-001',
+    driverName: 'Murugan S',
+    driverBadge: 'DRV-001',
+    role: 'Senior Tour Driver',
+    leaveType: 'Planned Leave',
+    startDate: '2026-11-26',
+    endDate: '2026-11-27',
+    totalDays: 2,
+    reason: 'Personal Reason',
+    status: 'Under Review',
+    appliedOn: '2026-11-23',
+    reviewedBy: null,
+    adminRemarks: null
+  }
+];
 
 // Sanitize trip category: strictly prohibits 'One Way' and normalizes to canonical categories
 export function sanitizeBookingCategory(cat, booking) {
@@ -1035,6 +1055,13 @@ export function TripProvider({ children }) {
     ]);
   });
 
+  // 10. Driver Leaves & Holiday Requests
+  const [driverLeaves, setDriverLeaves] = useState(() => {
+    return loadStoredJson(STORAGE_KEYS.DRIVER_LEAVES, null) ||
+           loadStoredJson('mak_driver_leaves_v7', null) ||
+           initialDriverLeaves;
+  });
+
   // Persist shared states
   useEffect(() => { saveStoredJson(STORAGE_KEYS.BOOKINGS, bookings); }, [bookings]);
   useEffect(() => { saveStoredJson(STORAGE_KEYS.DRIVERS, drivers); }, [drivers]);
@@ -1045,6 +1072,10 @@ export function TripProvider({ children }) {
   useEffect(() => { saveStoredJson(STORAGE_KEYS.INVOICES, invoices); }, [invoices]);
   useEffect(() => { saveStoredJson(STORAGE_KEYS.ADMIN_NOTIFS, adminNotifications); }, [adminNotifications]);
   useEffect(() => { saveStoredJson(STORAGE_KEYS.DRIVER_NOTIFS, driverNotifications); }, [driverNotifications]);
+  useEffect(() => {
+    saveStoredJson(STORAGE_KEYS.DRIVER_LEAVES, driverLeaves);
+    saveStoredJson('mak_driver_leaves_v7', driverLeaves);
+  }, [driverLeaves]);
 
   // Dynamically reconcile vehicle statuses with active bookings
   useEffect(() => {
@@ -1149,11 +1180,26 @@ export function TripProvider({ children }) {
         setAdminNotifications(loadStoredJson(STORAGE_KEYS.ADMIN_NOTIFS, []));
       } else if (changedKey === STORAGE_KEYS.DRIVER_NOTIFS) {
         setDriverNotifications(loadStoredJson(STORAGE_KEYS.DRIVER_NOTIFS, []));
+      } else if (changedKey === STORAGE_KEYS.DRIVER_LEAVES || changedKey === 'mak_driver_leaves_v7') {
+        setDriverLeaves(loadStoredJson(STORAGE_KEYS.DRIVER_LEAVES, initialDriverLeaves));
       }
     };
     window.addEventListener('storage', handleSync);
     return () => {
       window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
+  // Listen to in-window custom events for driver leaves
+  useEffect(() => {
+    const handleLeaveSync = () => {
+      setDriverLeaves(loadStoredJson(STORAGE_KEYS.DRIVER_LEAVES, initialDriverLeaves));
+    };
+    window.addEventListener('mak_driver_leave_submitted', handleLeaveSync);
+    window.addEventListener('mak_driver_leave_updated', handleLeaveSync);
+    return () => {
+      window.removeEventListener('mak_driver_leave_submitted', handleLeaveSync);
+      window.removeEventListener('mak_driver_leave_updated', handleLeaveSync);
     };
   }, []);
 
@@ -1257,6 +1303,124 @@ export function TripProvider({ children }) {
     );
     toast.success('All notifications marked as read');
   }, [toast]);
+
+  // Driver Planned Leave & Duty Availability Management
+  const requestDriverLeave = useCallback((leaveData) => {
+    const existing = loadStoredJson(STORAGE_KEYS.DRIVER_LEAVES, null) || initialDriverLeaves;
+    const nextNum = existing.length + 1;
+    const newId = `LV-${String(nextNum).padStart(2, '0')}`;
+
+    let days = 1;
+    try {
+      const start = new Date(leaveData.startDate);
+      const end = new Date(leaveData.endDate);
+      const diffTime = Math.abs(end - start);
+      days = Math.max(1, Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1);
+    } catch (e) {
+      days = 1;
+    }
+
+    const newLeave = {
+      id: newId,
+      driverId: leaveData.driverId || 'DRV-001',
+      driverName: leaveData.driverName || 'Murugan S',
+      driverBadge: leaveData.driverBadge || leaveData.driverId || 'DRV-001',
+      role: leaveData.role || 'Senior Tour Driver',
+      leaveType: leaveData.leaveType || 'Planned Leave',
+      startDate: leaveData.startDate,
+      endDate: leaveData.endDate,
+      totalDays: days,
+      reason: leaveData.reason || 'Personal Reason',
+      status: 'Under Review',
+      appliedOn: leaveData.appliedOn || new Date().toISOString().substring(0, 10),
+      reviewedBy: null,
+      adminRemarks: null
+    };
+
+    const updated = [newLeave, ...existing.filter((l) => l.id !== newId)];
+    setDriverLeaves(updated);
+    saveStoredJson(STORAGE_KEYS.DRIVER_LEAVES, updated);
+    saveStoredJson('mak_driver_leaves_v7', updated);
+
+    let formattedStart = leaveData.startDate;
+    let formattedEnd = leaveData.endDate;
+    try {
+      formattedStart = formatDateDMY(new Date(leaveData.startDate));
+      formattedEnd = formatDateDMY(new Date(leaveData.endDate));
+    } catch (e) {}
+
+    pushAdminNotification(
+      `Driver Leave Request: ${newLeave.driverName} (${newLeave.driverBadge})`,
+      `${newLeave.driverName} requested planned leave from ${formattedStart} to ${formattedEnd} (${days} days). Reason: "${newLeave.reason}"`,
+      {
+        type: 'leave',
+        category: 'Driver Leave Request',
+        priority: 'High',
+        driverName: newLeave.driverName,
+        driverId: newLeave.driverId,
+        actionUrl: '/admin/attendance?tab=leaves',
+        actionLink: '/admin/attendance?tab=leaves'
+      }
+    );
+
+    window.dispatchEvent(new CustomEvent('mak_driver_leave_submitted', { detail: newLeave }));
+    return newLeave;
+  }, [pushAdminNotification]);
+
+  const approveDriverLeave = useCallback((leaveId, approved = true, remarks = '') => {
+    const existing = loadStoredJson(STORAGE_KEYS.DRIVER_LEAVES, null) || initialDriverLeaves;
+    let target = null;
+    const updated = existing.map((l) => {
+      if (l.id === leaveId) {
+        target = {
+          ...l,
+          status: approved ? 'Approved' : 'Rejected',
+          reviewedBy: 'Operations Admin',
+          reviewedAt: new Date().toISOString().substring(0, 10),
+          adminRemarks: remarks || (approved ? 'Approved by Admin Desk' : 'Declined due to duty coverage')
+        };
+        return target;
+      }
+      return l;
+    });
+
+    setDriverLeaves(updated);
+    saveStoredJson(STORAGE_KEYS.DRIVER_LEAVES, updated);
+    saveStoredJson('mak_driver_leaves_v7', updated);
+
+    if (target) {
+      let formattedStart = target.startDate;
+      let formattedEnd = target.endDate;
+      try {
+        formattedStart = formatDateDMY(new Date(target.startDate));
+        formattedEnd = formatDateDMY(new Date(target.endDate));
+      } catch (e) {}
+
+      pushDriverNotification(
+        `Leave Request ${approved ? 'Approved! ✅' : 'Rejected ❌'}`,
+        `Your planned leave request from ${formattedStart} to ${formattedEnd} has been ${approved ? 'Approved' : 'Rejected'} by Admin Operations.${remarks ? ' Remarks: ' + remarks : ''}`,
+        {
+          type: 'leave',
+          category: 'Duty Roster',
+          priority: approved ? 'Normal' : 'High'
+        }
+      );
+
+      // Reconcile duty status for driver if approved
+      if (approved && target.driverId) {
+        setDrivers((prev) =>
+          prev.map((d) =>
+            (d.id === target.driverId || d.driverId === target.driverId)
+              ? { ...d, dutyStatus: 'On Leave', status: 'On Leave' }
+              : d
+          )
+        );
+      }
+    }
+
+    window.dispatchEvent(new CustomEvent('mak_driver_leave_updated', { detail: { id: leaveId, status: approved ? 'Approved' : 'Rejected' } }));
+    toast.success(`Driver leave request ${approved ? 'Approved' : 'Rejected'} successfully!`);
+  }, [pushDriverNotification, setDrivers, toast]);
 
   // Per-booking lookups derived strictly from authoritative stores
   const getBookingExpenses = useCallback((bookingId) => {
@@ -4231,7 +4395,12 @@ export function TripProvider({ children }) {
     markAllAdminNotificationsRead,
     clearAdminNotification,
     markDriverNotificationRead,
-    markAllDriverNotificationsRead
+    markAllDriverNotificationsRead,
+
+    // Driver Planned Leaves
+    driverLeaves,
+    requestDriverLeave,
+    approveDriverLeave
   };
 
   return <TripContext.Provider value={value}>{children}</TripContext.Provider>;
@@ -4251,6 +4420,9 @@ export function useTripContext() {
       invoices: [],
       adminNotifications: [],
       driverNotifications: [],
+      driverLeaves: [],
+      requestDriverLeave: () => {},
+      approveDriverLeave: () => {},
       getBookingExpenses: () => [],
       getBookingPayments: () => [],
       getBookingInvoices: () => [],

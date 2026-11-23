@@ -121,10 +121,20 @@ export function DriverDataProvider({ children }) {
   const [payments, setPayments] = useState(() => loadStoredJson('mak_driver_payments_v7', initialDriverPayments));
   const [documents, setDocuments] = useState(() => loadStoredJson('mak_driver_documents_v7', initialDriverDocuments));
   const [supportTickets, setSupportTickets] = useState(() => loadStoredJson('mak_driver_tickets_v7', initialDriverSupportTickets));
-  const [leaveRequests, setLeaveRequests] = useState(() => loadStoredJson('mak_driver_leaves_v7', []));
+  const [localLeaveRequests, setLocalLeaveRequests] = useState(() => loadStoredJson('mak_driver_leaves_v7', []));
   const [driverActivities, setDriverActivities] = useState(() => loadStoredJson('mak_driver_activities_v7', []));
   const [currentAppId, setCurrentAppId] = useState('');
   const [sosActive, setSosActive] = useState(false);
+
+  // Synchronized leave requests from shared TripContext
+  const leaveRequests = useMemo(() => {
+    if (tripCtx?.driverLeaves && Array.isArray(tripCtx.driverLeaves) && tripCtx.driverLeaves.length > 0) {
+      return tripCtx.driverLeaves.filter(
+        (l) => l.driverId === authDriverId || !l.driverId || authDriverId === 'DRV-001'
+      );
+    }
+    return localLeaveRequests;
+  }, [tripCtx?.driverLeaves, authDriverId, localLeaveRequests]);
 
   useEffect(() => { saveStoredJson('mak_driver_applications_v7', applications); }, [applications]);
   useEffect(() => { saveStoredJson('mak_driver_trips_v7', localTrips); }, [localTrips]);
@@ -132,7 +142,7 @@ export function DriverDataProvider({ children }) {
   useEffect(() => { saveStoredJson('mak_driver_payments_v7', payments); }, [payments]);
   useEffect(() => { saveStoredJson('mak_driver_documents_v7', documents); }, [documents]);
   useEffect(() => { saveStoredJson('mak_driver_tickets_v7', supportTickets); }, [supportTickets]);
-  useEffect(() => { saveStoredJson('mak_driver_leaves_v7', leaveRequests); }, [leaveRequests]);
+  useEffect(() => { saveStoredJson('mak_driver_leaves_v7', localLeaveRequests); }, [localLeaveRequests]);
   useEffect(() => { saveStoredJson('mak_driver_activities_v7', driverActivities); }, [driverActivities]);
 
   const logActivity = (text, type = 'info') => {
@@ -663,16 +673,34 @@ export function DriverDataProvider({ children }) {
   };
 
   const requestLeave = (leaveData) => {
+    if (tripCtx?.requestDriverLeave) {
+      const res = tripCtx.requestDriverLeave({
+        driverId: authDriverId,
+        driverName: driver?.name || driver?.fullName || 'Murugan S',
+        driverBadge: authDriverId || 'DRV-001',
+        role: 'Senior Tour Driver',
+        ...leaveData
+      });
+      toast.success('Leave application submitted for Admin approval.');
+      return res;
+    }
+
+    const nextId = `LV-0${(localLeaveRequests.length || 0) + 1}`;
     const newLeave = {
-      id: `LV-0${leaveRequests.length + 1}`,
+      id: nextId,
       driverId: authDriverId,
+      driverName: driver?.name || driver?.fullName || 'Murugan S',
+      driverBadge: authDriverId || 'DRV-001',
+      role: 'Senior Tour Driver',
+      leaveType: 'Planned Leave',
       startDate: leaveData.startDate,
       endDate: leaveData.endDate,
+      totalDays: 2,
       reason: leaveData.reason,
       status: 'Under Review',
       appliedOn: new Date().toISOString().substring(0, 10)
     };
-    setLeaveRequests((prev) => [newLeave, ...prev]);
+    setLocalLeaveRequests((prev) => [newLeave, ...prev]);
     toast.success('Leave application submitted for Admin approval.');
     return newLeave;
   };

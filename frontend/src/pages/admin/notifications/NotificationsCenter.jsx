@@ -59,6 +59,8 @@ export function NotificationsCenter() {
         return <Car size={18} style={{ color: '#dc2626' }} />;
       case 'Driver Assignment':
       case 'Driver License Expiry':
+      case 'Driver Leave Request':
+      case 'Staff Leave Request':
         return <UserCheck size={18} style={{ color: '#2563eb' }} />;
       case 'Booking Cancellation':
         return <AlertCircle size={18} style={{ color: '#ea580c' }} />;

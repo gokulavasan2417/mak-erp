@@ -120,7 +120,10 @@ export function AdminDataProvider({ children }) {
     isVehicleAvailable,
     getBookingExpenses,
     getBookingPayments,
-    getBookingInvoices
+    getBookingInvoices,
+    driverLeaves,
+    requestDriverLeave,
+    approveDriverLeave
   } = tripCtx;
 
   // Persisted Admin-only Entities (SECTION 4.2)
@@ -1256,6 +1259,21 @@ export function AdminDataProvider({ children }) {
       reviewedBy: null
     };
     setStaffLeaveRequests((prev) => [newLeave, ...prev]);
+
+    if (tripCtx?.pushAdminNotification) {
+      tripCtx.pushAdminNotification(
+        `Staff Leave Request: ${leaveData.employeeName} (${leaveData.employeeCode || 'Staff'})`,
+        `${leaveData.employeeName} requested ${leaveData.leaveType || 'leave'} from ${leaveData.fromDate} to ${leaveData.toDate} (${leaveData.totalDays || 1} days). Reason: "${leaveData.reason || 'Personal Reason'}"`,
+        {
+          type: 'leave',
+          category: 'Staff Leave Request',
+          priority: 'Normal',
+          actionUrl: '/admin/attendance?tab=leaves',
+          actionLink: '/admin/attendance?tab=leaves'
+        }
+      );
+    }
+
     toast.success(`Leave application submitted for ${leaveData.employeeName}`);
     return newLeave;
   };
@@ -1557,6 +1575,9 @@ export function AdminDataProvider({ children }) {
         // Staff Attendance & Leaves
         staffAttendance,
         staffLeaveRequests,
+        driverLeaveRequests: driverLeaves || [],
+        requestDriverLeave,
+        approveDriverLeave,
         markAttendance,
         bulkMarkAttendance,
         updateAttendanceRecord,
