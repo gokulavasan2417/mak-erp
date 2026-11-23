@@ -629,7 +629,7 @@ export function ExpensesList() {
 
       {/* Grid or Table Display - Responsive minmax */}
       {viewMode === 'grid' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 350px), 1fr))', gap: '1rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 320px), 1fr))', gap: '1rem', width: '100%' }}>
           {paginatedExpenses.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', padding: '3.5rem 2rem', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
               <Wrench size={40} style={{ color: '#cbd5e1', margin: '0 auto 0.75rem' }} />
@@ -657,36 +657,60 @@ export function ExpensesList() {
                   borderRadius: '16px',
                   border: '1px solid #e2e8f0',
                   boxShadow: '0 2px 5px rgba(0,0,0,0.03)',
-                  padding: '1.25rem',
+                  padding: 'clamp(0.875rem, 3vw, 1.25rem)',
                   display: 'flex',
                   flexDirection: 'column',
-                  gap: '0.875rem'
+                  gap: '0.875rem',
+                  overflow: 'hidden',
+                  width: '100%',
+                  boxSizing: 'border-box'
                 }}
               >
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                    <span className="font-mono" style={{ fontWeight: 800, fontSize: '0.95rem', color: '#2C3480' }}>
+                {/* Card Header: Top row with ID & Amount, followed by Category & Status Badges */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', width: '100%' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                    <span
+                      className="font-mono"
+                      style={{
+                        fontWeight: 800,
+                        fontSize: '0.95rem',
+                        color: '#2C3480',
+                        whiteSpace: 'nowrap',
+                        letterSpacing: '0.01em'
+                      }}
+                    >
                       {expId}
                     </span>
+
+                    <div
+                      style={{
+                        fontSize: '1.25rem',
+                        fontWeight: 800,
+                        color: '#090d16',
+                        whiteSpace: 'nowrap',
+                        textAlign: 'right'
+                      }}
+                    >
+                      ₹{Number(exp.amount || 0).toLocaleString('en-IN')}
+                    </div>
+                  </div>
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                     <Badge variant="primary" size="sm">{exp.category}</Badge>
                     {exp.status === 'Approved' && <Badge variant="success">Approved</Badge>}
                     {exp.status === 'Pending Approval' && <Badge variant="warning">Pending Approval</Badge>}
                     {exp.status === 'Rejected' && <Badge variant="danger">Rejected</Badge>}
                     {exp.status === 'Paid' && <Badge variant="info">Paid</Badge>}
                   </div>
-
-                  <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#090d16' }}>
-                    ₹{Number(exp.amount || 0).toLocaleString('en-IN')}
-                  </div>
                 </div>
 
-                <div style={{ fontSize: '0.8125rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                <div style={{ fontSize: '0.8125rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.35rem', overflowWrap: 'break-word', wordBreak: 'break-word' }}>
                   {exp.bookingId || exp.tripId ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#1e293b', flexWrap: 'wrap' }}>
                       <span>Booking: <Link to={`/admin/bookings/${exp.bookingId || exp.id || ''}`} style={{ fontWeight: 700, color: '#2C3480' }}>{exp.bookingId || exp.id || 'N/A'}</Link></span>
                       {exp.tripId && <span className="font-mono" style={{ color: '#64748b' }}>• Trip: {exp.tripId}</span>}
                       {(exp.vehicleRegNo || exp.vehicleNumber) && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#2C3480', fontWeight: 600 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#2C3480', fontWeight: 600, whiteSpace: 'nowrap' }}>
                           • <Car size={13} /> {exp.vehicleRegNo || exp.vehicleNumber}
                         </span>
                       )}
@@ -694,14 +718,15 @@ export function ExpensesList() {
                   ) : (exp.vehicleRegNo || exp.vehicleNumber) ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#1e293b', flexWrap: 'wrap' }}>
                       <Car size={15} color="#2C3480" />
-                      <span>Vehicle: <strong style={{ color: '#2C3480' }}>{exp.vehicleRegNo || exp.vehicleNumber}</strong></span>
+                      <span>Vehicle: <strong style={{ color: '#2C3480', whiteSpace: 'nowrap' }}>{exp.vehicleRegNo || exp.vehicleNumber}</strong></span>
                       {exp.workshopName && <span style={{ color: '#64748b' }}>• Workshop: {exp.workshopName}</span>}
-                      {exp.odometerKm > 0 && <span style={{ color: '#64748b' }}>• {Number(exp.odometerKm).toLocaleString('en-IN')} KM</span>}
+                      {exp.odometerKm > 0 && <span style={{ color: '#64748b', whiteSpace: 'nowrap' }}>• {Number(exp.odometerKm).toLocaleString('en-IN')} KM</span>}
                     </div>
                   ) : null}
-                  <div>
-                    Handled by: <strong>{exp.driverName || exp.payee || 'Operations'}</strong> • Date: {formatDateDMY(exp.expenseDate || exp.date) || 'Recent'}
-                    {exp.invoiceNo && <span> • Bill #{exp.invoiceNo}</span>}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                    <span>Handled by: <strong>{exp.driverName || exp.payee || 'Operations'}</strong></span>
+                    <span style={{ whiteSpace: 'nowrap' }}>• Date: {formatDateDMY(exp.expenseDate || exp.date) || 'Recent'}</span>
+                    {exp.invoiceNo && <span style={{ whiteSpace: 'nowrap' }}>• Bill #{exp.invoiceNo}</span>}
                   </div>
                   <div>
                     Description: <em>"{exp.description || exp.title || exp.category || 'Expense Voucher'}"</em>
@@ -726,7 +751,7 @@ export function ExpensesList() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderTop: '1px solid #f1f5f9', paddingTop: '0.75rem', flexWrap: 'wrap', gap: '0.5rem' }}>
                   {exp.receiptUrl ? (
                     <Button size="sm" variant="ghost" onClick={() => setViewReceiptModal(exp)}>
                       <Eye size={13} style={{ marginRight: '0.25rem' }} /> View Slip
@@ -735,7 +760,7 @@ export function ExpensesList() {
                     <span style={{ fontSize: '0.75rem', color: '#94a3b8' }}>No Receipt</span>
                   )}
 
-                  <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                     {exp.status === 'Pending Approval' && (
                       <Button size="sm" variant="primary" onClick={() => handleOpenReview(exp)}>
                         Review &amp; Approve
