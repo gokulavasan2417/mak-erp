@@ -155,14 +155,14 @@ export function StaffDashboard() {
         <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '14px', border: '1px solid #e2e8f0', boxShadow: '0 2px 4px rgba(0,0,0,0.03)' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
             <span style={{ fontSize: '0.8rem', fontWeight: 700, color: '#64748b', textTransform: 'uppercase' }}>
-              Attendance (Nov 2026)
+              Attendance (Nov 2026 &bull; {attendanceMetrics.totalMonthDays || 30} Days)
             </span>
             <span style={{ backgroundColor: '#dcfce7', color: '#15803d', padding: '0.2rem 0.5rem', borderRadius: '6px', fontSize: '0.75rem', fontWeight: 800 }}>
               {attendanceMetrics.attendancePercentage}%
             </span>
           </div>
           <div style={{ fontSize: '1.75rem', fontWeight: 800, color: '#0f172a' }}>
-            {attendanceMetrics.effectivePresentDays} <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>/ {attendanceMetrics.workingDays} Days</span>
+            {attendanceMetrics.effectivePresentDays} <span style={{ fontSize: '0.9rem', color: '#64748b', fontWeight: 500 }}>/ {attendanceMetrics.totalMonthDays || 30} Days</span>
           </div>
           <div style={{ marginTop: '0.6rem', height: '6px', backgroundColor: '#f1f5f9', borderRadius: '999px', overflow: 'hidden' }}>
             <div style={{ height: '100%', width: `${attendanceMetrics.attendancePercentage}%`, backgroundColor: '#10b981', borderRadius: '999px' }} />
@@ -202,7 +202,14 @@ export function StaffDashboard() {
             ₹{salaryDetails.earnedGrossSalary.toLocaleString()}
           </div>
           <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: '#64748b' }}>
-            Net Payable: <strong>₹{salaryDetails.netPayableSalary.toLocaleString()}</strong> (Post-deductions)
+            Net Payable: <strong style={{ color: '#0f172a' }}>₹{salaryDetails.netPayableSalary.toLocaleString()}</strong>
+            {salaryDetails.isDeductionWaived ? (
+              <span style={{ marginLeft: '0.35rem', color: '#16a34a', fontWeight: 700 }}>(Deduction Waived by Admin)</span>
+            ) : (
+              <span style={{ marginLeft: '0.35rem', color: '#dc2626' }}>
+                (-₹{salaryDetails.deductions}: {salaryDetails.deductionReason || 'Admin Deduction'})
+              </span>
+            )}
           </p>
         </div>
 
@@ -228,7 +235,7 @@ export function StaffDashboard() {
         {/* Attendance Breakdown Card */}
         <Card>
           <CardHeader
-            title="Monthly Attendance Summary (November 2026)"
+            title={`Monthly Attendance Summary (November 2026 • ${attendanceMetrics.totalMonthDays || 30} Days)`}
             subtitle="Attendance metrics evaluated for payroll disbursement"
           />
           <CardBody style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -359,7 +366,25 @@ export function StaffDashboard() {
                     </span>
                   </td>
                   <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>₹{slip.grossSalary.toLocaleString()}</td>
-                  <td style={{ padding: '0.75rem 1rem', color: '#dc2626' }}>-₹{slip.totalDeductions.toLocaleString()}</td>
+                  <td style={{ padding: '0.75rem 1rem' }}>
+                    {slip.isDeductionWaived || slip.totalDeductions === 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span style={{ color: '#16a34a', fontWeight: 800 }}>₹0</span>
+                        <span style={{ fontSize: '0.7rem', color: '#15803d', backgroundColor: '#dcfce7', padding: '0.1rem 0.4rem', borderRadius: '4px', width: 'fit-content', fontWeight: 700 }}>
+                          Waived by Admin
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span style={{ color: '#dc2626', fontWeight: 800 }}>-₹{slip.totalDeductions.toLocaleString()}</span>
+                        {slip.deductionReason && (
+                          <span style={{ fontSize: '0.7rem', color: '#64748b', fontStyle: 'italic', maxWidth: '200px', lineHeight: 1.25 }}>
+                            Reason: {slip.deductionReason}
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </td>
                   <td style={{ padding: '0.75rem 1rem', fontWeight: 800, color: '#166534' }}>₹{slip.netSalary.toLocaleString()}</td>
                   <td style={{ padding: '0.75rem 1rem' }}>
                     <span style={{ backgroundColor: '#f0fdf4', color: '#166534', border: '1px solid #bbf7d0', padding: '0.15rem 0.5rem', borderRadius: '4px', fontSize: '0.75rem', fontWeight: 700 }}>

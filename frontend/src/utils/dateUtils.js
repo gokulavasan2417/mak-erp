@@ -429,3 +429,44 @@ export function isVehicleAvailable(vehicleId, startDate, endDate, vehicles = [],
 
   return { available: true };
 }
+
+/**
+ * Calculate the exact number of days in a given month (31, 30, 28, or 29 days).
+ * @param {number|string} year - Full year (e.g. 2026)
+ * @param {number|string} month - Month (1-12 or 0-11 if isZeroIndexed is true)
+ * @param {boolean} isZeroIndexed - Whether month parameter is 0-indexed (Jan=0)
+ * @returns {number} 28, 29, 30, or 31
+ */
+export function getDaysInMonth(year = 2026, month = 11, isZeroIndexed = false) {
+  const y = parseInt(year, 10) || 2026;
+  const m = isZeroIndexed ? parseInt(month, 10) + 1 : parseInt(month, 10) || 11;
+  return new Date(y, m, 0).getDate();
+}
+
+/**
+ * Returns comprehensive month details including calendar days, month name, and leap year detection.
+ */
+export function getMonthDaysInfo(monthStrOrDate) {
+  let y = 2026;
+  let m = 11;
+  if (typeof monthStrOrDate === 'string' && monthStrOrDate.includes('-')) {
+    const parts = monthStrOrDate.split('-');
+    y = parseInt(parts[0], 10) || 2026;
+    m = parseInt(parts[1], 10) || 11;
+  } else if (monthStrOrDate instanceof Date) {
+    y = monthStrOrDate.getFullYear();
+    m = monthStrOrDate.getMonth() + 1;
+  }
+  const totalDays = new Date(y, m, 0).getDate();
+  const monthName = new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long' });
+  const isLeapYear = (y % 4 === 0 && y % 100 !== 0) || y % 400 === 0;
+
+  return {
+    year: y,
+    month: m,
+    totalDays, // 30, 31, 28, or 29 days
+    monthName,
+    isLeapYear,
+    label: `${monthName} ${y}`
+  };
+}

@@ -14,7 +14,20 @@ export const StaffDataContext = createContext();
 const STORAGE_KEYS = {
   STAFF_PROFILE: 'mak_staff_profile_cache',
   STAFF_LEAVES: 'mak_staff_leaves_cache',
-  STAFF_PUNCHES: 'mak_staff_punches_cache'
+  STAFF_PUNCHES: 'mak_staff_punches_cache',
+  STAFF_DEDUCTIONS: 'mak_staff_deduction_overrides'
+};
+
+export const defaultDeductionConfig = {
+  isWaived: false,
+  deductionAmount: 200,
+  reason: 'Professional Tax (PT) statutory deduction',
+  months: {
+    'October 2026': { isWaived: false, deductionAmount: 200, reason: 'Late arrival penalty (3 instances > 15 mins)' },
+    'September 2026': { isWaived: false, deductionAmount: 200, reason: 'Professional Tax statutory deduction' },
+    'August 2026': { isWaived: false, deductionAmount: 200, reason: 'Professional Tax statutory deduction' },
+    'November 2026': { isWaived: false, deductionAmount: 200, reason: 'Professional Tax statutory deduction' }
+  }
 };
 
 const buildStaffProfileFromUser = (u) => {
@@ -206,12 +219,60 @@ export function StaffDataProvider({ children }) {
     return initialDays;
   });
 
-  // Calculate Attendance Metrics strictly using Admin Payroll logic
+  // Admin-controlled deduction configuration (can be waived/cancelled or applied with specific reason)
+  const [deductionConfig, setDeductionConfig] = useState(() => {
+    return loadStoredJson(STORAGE_KEYS.STAFF_DEDUCTIONS, defaultDeductionConfig);
+  });
+
+  useEffect(() => {
+    const handleUpdate = () => {
+      const stored = loadStoredJson(STORAGE_KEYS.STAFF_DEDUCTIONS, defaultDeductionConfig);
+      setDeductionConfig(stored);
+    };
+    window.addEventListener('mak_staff_deduction_updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('mak_staff_deduction_updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  const updateDeduction = useCallback((monthKey, { isWaived, deductionAmount, reason }) => {
+    setDeductionConfig((prev) => {
+      const next = {
+        ...prev,
+        isWaived: isWaived !== undefined ? isWaived : prev.isWaived,
+        deductionAmount: deductionAmount !== undefined ? deductionAmount : prev.deductionAmount,
+        reason: reason || prev.reason,
+        months: {
+          ...(prev.months || {}),
+          [monthKey]: {
+            isWaived: Boolean(isWaived),
+            deductionAmount: isWaived ? 0 : Number(deductionAmount || 0),
+            reason: isWaived ? 'Waived / Cancelled by Admin' : (reason || 'Deduction applied by Admin')
+          }
+        }
+      };
+      saveStoredJson(STORAGE_KEYS.STAFF_DEDUCTIONS, next);
+      window.dispatchEvent(new CustomEvent('mak_staff_deduction_updated', { detail: next }));
+      return next;
+    });
+  }, []);
+
+  // Calculate Attendance Metrics strictly using Admin Payroll logic and dynamic calendar days (30, 31, 28/29)
   const attendanceMetrics = useMemo(() => {
-    const totalMonthDays = 30; // November
+    let year = 2026;
+    let monthNum = 11;
+    if (selectedMonth && typeof selectedMonth === 'string' && selectedMonth.includes('-')) {
+      const parts = selectedMonth.split('-');
+      year = parseInt(parts[0], 10) || 2026;
+      monthNum = parseInt(parts[1], 10) || 11;
+    }
+    // Dynamic days according to month: 30 for Nov/Apr/Jun/Sep, 31 for Oct/Dec/Jan/Mar/May/Jul/Aug, 28/29 for Feb
+    const totalMonthDays = new Date(year, monthNum, 0).getDate();
     const weeklyOffs = 4;
     const holidays = 1; // Deepavali Festival Off
-    const workingDays = totalMonthDays - weeklyOffs - holidays; // 25 days
+    const workingDays = totalMonthDays - weeklyOffs - holidays;
 
     let presentDays = 0;
     let halfDays = 0;
@@ -233,7 +294,7 @@ export function StaffDataProvider({ children }) {
     const attendancePercentage = Math.min(100, Math.round((effectivePresentDays / elapsedWorkingDays) * 100));
 
     return {
-      totalMonthDays,
+      totalMonthDays, // e.g. 30 for November, 31 for October, 28/29 for February
       weeklyOffs,
       holidays,
       workingDays,
@@ -244,9 +305,9 @@ export function StaffDataProvider({ children }) {
       absentDays,
       effectivePresentDays,
       attendancePercentage: isNaN(attendancePercentage) ? 96 : attendancePercentage,
-      payableDays: effectivePresentDays + (attendanceLog.length >= 25 ? weeklyOffs + holidays : 0)
+      payableDays: effectivePresentDays + (attendanceLog.length >= workingDays ? weeklyOffs + holidays : 0)
     };
-  }, [attendanceLog]);
+  }, [attendanceLog, selectedMonth]);
 
   // Synchronize official backend payroll data for this employee
   const [backendPayrolls, setBackendPayrolls] = useState([]);
@@ -274,11 +335,25 @@ export function StaffDataProvider({ children }) {
     );
   }, [backendPayrolls, profile]);
 
-  // 4. Authoritative Attendance-Based Salary Calculation (Consumes Backend Payroll when available)
+  // 4. Authoritative Attendance-Based Salary Calculation with Admin Deduction Control
   const salaryDetails = useMemo(() => {
+    const novCfg = deductionConfig?.months?.['November 2026'] || deductionConfig?.months?.['2026-11'] || {
+      isWaived: Boolean(deductionConfig?.isWaived),
+      amount: deductionConfig?.isWaived ? 0 : Number(deductionConfig?.deductionAmount || 0),
+      reason: deductionConfig?.isWaived ? 'Waived by Admin' : (deductionConfig?.reason || 'Statutory / Biometric grace deduction')
+    };
+    const isDeductionWaived = Boolean(novCfg.isWaived || deductionConfig?.isWaived);
+    const configuredDeduction = isDeductionWaived ? 0 : Number(novCfg.amount ?? (deductionConfig?.deductionAmount || 0));
+    const deductionReason = isDeductionWaived
+      ? 'Deduction Waived / Cancelled by Operations Admin'
+      : (novCfg.reason || deductionConfig?.reason || 'Biometric attendance adjustment');
+
     if (matchedPayroll) {
       const eb = matchedPayroll.earningsBreakdown || {};
       const db = matchedPayroll.deductionsBreakdown || {};
+      const actualDeduction = isDeductionWaived ? 0 : (configuredDeduction || Number(db.totalDeductions || db.professionalTax || 0));
+      const calculatedNet = Math.max(0, (eb.grossEarnings || eb.monthlyGrossSalary || profile.monthlySalary || 0) - actualDeduction);
+
       return {
         monthlyBasicSalary: eb.monthlyGrossSalary || eb.basicSalary || profile.monthlySalary || 0,
         salaryBasis: profile.salaryBasis || 'Attendance-Based Monthly Salary',
@@ -291,26 +366,30 @@ export function StaffDataProvider({ children }) {
         },
         statutoryDeductions: {
           pf: 0,
-          esi: db.esiDeduction || 0,
-          professionalTax: db.professionalTax || 0,
-          totalDeductions: (Number(db.esiDeduction || 0) + Number(db.professionalTax || 0)) || 0
+          esi: isDeductionWaived ? 0 : (db.esiDeduction || 0),
+          professionalTax: isDeductionWaived ? 0 : (db.professionalTax || configuredDeduction),
+          totalDeductions: actualDeduction
         },
+        isDeductionWaived,
+        deductionReason,
         earnedGrossSalary: eb.grossEarnings || 0,
-        netPayableSalary: matchedPayroll.netPayableSalary || 0,
+        netPayableSalary: calculatedNet,
         lastSalaryPaid: matchedPayroll.totalPaidAmount || 0,
-        pendingSalary: matchedPayroll.outstandingSalary !== undefined ? matchedPayroll.outstandingSalary : Math.max(0, (matchedPayroll.netPayableSalary || 0) - (matchedPayroll.totalPaidAmount || 0)),
+        pendingSalary: calculatedNet,
         paymentStatus: matchedPayroll.status || 'Calculated'
       };
     }
 
-    const basicMonthly = profile.monthlySalary || 0;
-    const workingDays = attendanceMetrics.workingDays || 26;
+    const basicMonthly = profile.monthlySalary || 42000;
+    const workingDays = attendanceMetrics.workingDays || 25;
     const basicPortion = Math.round(basicMonthly * 0.50);
     const hraPortion = Math.round(basicMonthly * 0.25);
     const travelAllowance = Math.round(basicMonthly * 0.15);
     const specialAllowance = Math.max(0, basicMonthly - basicPortion - hraPortion - travelAllowance);
 
     const projectedFullMonthGross = Math.round(basicMonthly * ((attendanceMetrics.attendancePercentage || 100) / 100));
+    const actualDeduction = isDeductionWaived ? 0 : configuredDeduction;
+    const calculatedNet = Math.max(0, projectedFullMonthGross - actualDeduction);
 
     return {
       monthlyBasicSalary: basicMonthly,
@@ -325,16 +404,18 @@ export function StaffDataProvider({ children }) {
       statutoryDeductions: {
         pf: 0,
         esi: 0,
-        professionalTax: 0,
-        totalDeductions: 0
+        professionalTax: actualDeduction,
+        totalDeductions: actualDeduction
       },
+      isDeductionWaived,
+      deductionReason,
       earnedGrossSalary: projectedFullMonthGross,
-      netPayableSalary: projectedFullMonthGross,
+      netPayableSalary: calculatedNet,
       lastSalaryPaid: 0,
-      pendingSalary: projectedFullMonthGross,
+      pendingSalary: calculatedNet,
       paymentStatus: 'Awaiting Calculation'
     };
-  }, [matchedPayroll, profile.monthlySalary, profile.salaryBasis, attendanceMetrics]);
+  }, [matchedPayroll, profile.monthlySalary, profile.salaryBasis, attendanceMetrics, deductionConfig]);
 
   // 5. Leave Management State
   const [leaveBalances, setLeaveBalances] = useState({
@@ -514,20 +595,53 @@ export function StaffDataProvider({ children }) {
     toast.success(`Attendance ${type} successfully recorded at ${nowTime}!`);
   }, [toast]);
 
-  // 7. Salary Slips & History
+  // 7. Salary Slips & History with dynamic calendar days & Admin-controlled deductions
   const salarySlips = useMemo(() => {
+    const getMonthConfig = (mName, defaultDeduct, defaultReason) => {
+      const mCfg = deductionConfig?.months?.[mName];
+      if (mCfg) {
+        return {
+          isWaived: Boolean(mCfg.isWaived),
+          amount: mCfg.isWaived ? 0 : Number(mCfg.deductionAmount || 0),
+          reason: mCfg.reason || (mCfg.isWaived ? 'Waived / Cancelled by Admin' : defaultReason)
+        };
+      }
+      if (deductionConfig?.isWaived) {
+        return {
+          isWaived: true,
+          amount: 0,
+          reason: 'Waived / Cancelled by Admin'
+        };
+      }
+      return {
+        isWaived: false,
+        amount: deductionConfig?.deductionAmount !== undefined ? deductionConfig.deductionAmount : defaultDeduct,
+        reason: deductionConfig?.reason || defaultReason
+      };
+    };
+
+    const octCfg = getMonthConfig('October 2026', 200, 'Late arrival penalty (3 instances > 15 mins)');
+    const sepCfg = getMonthConfig('September 2026', 200, 'Professional Tax statutory deduction');
+    const augCfg = getMonthConfig('August 2026', 200, 'Professional Tax statutory deduction');
+
+    const baseGross = Number(profile.monthlySalary || 42000);
+
     return [
       {
         month: 'October 2026',
         period: '2026-10-01 to 2026-10-31',
         slipNumber: 'MAK-SLIP-2026-10-010',
-        basicSalary: profile.monthlySalary || 42000,
+        basicSalary: baseGross,
         attendancePercentage: 98,
         presentDays: 24,
-        workingDays: 25,
-        grossSalary: 42000,
-        totalDeductions: 200,
-        netSalary: 41800,
+        totalMonthDays: 31, // October has 31 days
+        workingDays: 27, // 31 days minus 4 Sundays
+        grossSalary: baseGross,
+        totalDeductions: octCfg.amount,
+        deductionReason: octCfg.reason,
+        isDeductionWaived: octCfg.isWaived,
+        deductionStatus: octCfg.isWaived ? 'Waived by Admin' : 'Applied',
+        netSalary: baseGross - octCfg.amount,
         paymentStatus: 'Paid',
         paymentDate: '2026-10-31',
         paymentMethod: 'Bank Direct NEFT',
@@ -537,13 +651,17 @@ export function StaffDataProvider({ children }) {
         month: 'September 2026',
         period: '2026-09-01 to 2026-09-30',
         slipNumber: 'MAK-SLIP-2026-09-010',
-        basicSalary: profile.monthlySalary || 42000,
+        basicSalary: baseGross,
         attendancePercentage: 96,
         presentDays: 24,
-        workingDays: 25,
-        grossSalary: 42000,
-        totalDeductions: 200,
-        netSalary: 41800,
+        totalMonthDays: 30, // September has 30 days
+        workingDays: 26, // 30 days minus 4 Sundays
+        grossSalary: baseGross,
+        totalDeductions: sepCfg.amount,
+        deductionReason: sepCfg.reason,
+        isDeductionWaived: sepCfg.isWaived,
+        deductionStatus: sepCfg.isWaived ? 'Waived by Admin' : 'Applied',
+        netSalary: baseGross - sepCfg.amount,
         paymentStatus: 'Paid',
         paymentDate: '2026-09-30',
         paymentMethod: 'Bank Direct NEFT',
@@ -553,20 +671,24 @@ export function StaffDataProvider({ children }) {
         month: 'August 2026',
         period: '2026-08-01 to 2026-08-31',
         slipNumber: 'MAK-SLIP-2026-08-010',
-        basicSalary: profile.monthlySalary || 42000,
+        basicSalary: baseGross,
         attendancePercentage: 100,
         presentDays: 26,
-        workingDays: 26,
-        grossSalary: 42000,
-        totalDeductions: 200,
-        netSalary: 41800,
+        totalMonthDays: 31, // August has 31 days
+        workingDays: 26, // 31 days minus 5 Sundays
+        grossSalary: baseGross,
+        totalDeductions: augCfg.amount,
+        deductionReason: augCfg.reason,
+        isDeductionWaived: augCfg.isWaived,
+        deductionStatus: augCfg.isWaived ? 'Waived by Admin' : 'Applied',
+        netSalary: baseGross - augCfg.amount,
         paymentStatus: 'Paid',
         paymentDate: '2026-08-31',
         paymentMethod: 'Bank Direct NEFT',
         transactionRef: 'NEFT-MAK-66291048'
       }
     ];
-  }, [profile.monthlySalary]);
+  }, [profile.monthlySalary, deductionConfig]);
 
   const value = {
     profile,
@@ -580,7 +702,9 @@ export function StaffDataProvider({ children }) {
     cancelLeave,
     recordTodayPunch,
     updateStaffProfile,
-    salarySlips
+    salarySlips,
+    deductionConfig,
+    updateDeduction
   };
 
   return <StaffDataContext.Provider value={value}>{children}</StaffDataContext.Provider>;

@@ -68,7 +68,7 @@ export function StaffAttendance() {
             Attendance &amp; Monthly Timesheets
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#64748b', margin: '0.25rem 0 0' }}>
-            November 2026 Shift Roster: {profile.shift} &bull; Chennai HQ Terminal Biometric
+            November 2026 Shift Roster ({attendanceMetrics.totalMonthDays || 30} Days Cycle): {profile.shift} &bull; Chennai HQ Terminal Biometric
           </p>
         </div>
 
@@ -127,7 +127,7 @@ export function StaffAttendance() {
       {/* Attendance Log Table */}
       <Card>
         <CardHeader
-          title="Daily Attendance Register (November 2026)"
+          title={`Daily Attendance Register (November 2026 • ${attendanceMetrics.totalMonthDays || 30} Days)`}
           subtitle="Biometric punch records and shift verification"
         />
         <CardBody style={{ overflowX: 'auto' }}>

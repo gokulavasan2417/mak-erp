@@ -179,30 +179,47 @@ export function StaffSalaryDetails() {
 
         {/* Statutory Deductions Card */}
         <Card>
-          <CardHeader title="Statutory Benefits &amp; Deductions" subtitle="ESI, Professional Tax &amp; Withholdings" />
+          <CardHeader
+            title="Deductions &amp; Statutory Withholdings"
+            subtitle={salaryDetails.isDeductionWaived ? 'Deductions waived by Admin Operations' : 'Admin controlled deductions & statutory PT'}
+          />
           <CardBody style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.65rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.875rem' }}>
-              <span style={{ color: '#475569' }}>Employees' State Insurance (ESIC)</span>
-              <strong style={{ color: '#dc2626' }}>
-                {statutoryDeductions.esi > 0 ? `-₹${statutoryDeductions.esi.toLocaleString()}` : 'Exempt (>₹21,000)'}
-              </strong>
-            </div>
+            {salaryDetails.isDeductionWaived ? (
+              <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '10px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#166534', fontWeight: 800, fontSize: '0.95rem' }}>
+                  <CheckCircle2 size={16} /> Admin Deduction Waiver Active
+                </div>
+                <p style={{ margin: 0, fontSize: '0.8rem', color: '#15803d' }}>
+                  All deductions for this pay cycle have been cancelled/waived by Admin Operations. You will receive 100% full gross pay of ₹{(salaryDetails.monthlyBasicSalary || 42000).toLocaleString()}.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.65rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.875rem' }}>
+                  <div>
+                    <span style={{ color: '#475569', fontWeight: 600 }}>Applied Deduction</span>
+                    {salaryDetails.deductionReason && (
+                      <div style={{ fontSize: '0.72rem', color: '#64748b' }}>Reason: {salaryDetails.deductionReason}</div>
+                    )}
+                  </div>
+                  <strong style={{ color: '#dc2626' }}>-₹{salaryDetails.deductions.toLocaleString()}</strong>
+                </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.65rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.875rem' }}>
-              <span style={{ color: '#475569' }}>Professional Tax (Tamil Nadu)</span>
-              <strong style={{ color: '#dc2626' }}>-₹{statutoryDeductions.professionalTax.toLocaleString()}</strong>
-            </div>
-
-            <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.65rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.875rem' }}>
-              <span style={{ color: '#475569' }}>Income Tax (TDS)</span>
-              <strong style={{ color: '#64748b' }}>₹0 (Standard Exemption)</strong>
-            </div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.65rem 0', borderBottom: '1px solid #f1f5f9', fontSize: '0.875rem' }}>
+                  <span style={{ color: '#475569' }}>Income Tax (TDS)</span>
+                  <strong style={{ color: '#64748b' }}>₹0 (Standard Exemption)</strong>
+                </div>
+              </>
+            )}
 
             <div style={{ display: 'flex', justifyContent: 'space-between', padding: '0.85rem 0 0.2rem', marginTop: '0.5rem', borderTop: '2px solid #e2e8f0', fontSize: '1rem' }}>
               <span style={{ fontWeight: 700, color: '#0f172a' }}>Total Monthly Deductions</span>
-              <span style={{ fontWeight: 800, color: '#dc2626', fontSize: '1.15rem' }}>
-                -₹{statutoryDeductions.totalDeductions.toLocaleString()}
+              <span style={{ fontWeight: 800, color: salaryDetails.isDeductionWaived ? '#16a34a' : '#dc2626', fontSize: '1.15rem' }}>
+                {salaryDetails.isDeductionWaived ? '₹0 (Waived)' : `-₹${salaryDetails.deductions.toLocaleString()}`}
               </span>
+            </div>
+            <div style={{ fontSize: '0.72rem', color: '#64748b', fontStyle: 'italic' }}>
+              * Admin Operations controls deductions directly and can waive or adjust penalties/taxes at any time.
             </div>
           </CardBody>
         </Card>

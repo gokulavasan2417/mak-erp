@@ -47,6 +47,35 @@ import { Input } from '../../../components/ui/Input';
 import { useAdminData } from '../../../context/AdminDataContext';
 import { useToast } from '../../../context/ToastContext';
 
+const STAFF_DEDUCTION_STORAGE_KEY = 'mak_staff_deduction_overrides';
+
+const loadStaffDeductionConfig = () => {
+  try {
+    const raw = localStorage.getItem(STAFF_DEDUCTION_STORAGE_KEY);
+    if (raw) return JSON.parse(raw);
+  } catch (e) {
+    console.error(e);
+  }
+  return {
+    isWaived: false,
+    deductionAmount: 200,
+    reason: 'Professional Tax (PT) statutory deduction',
+    months: {
+      'October 2026': { isWaived: false, deductionAmount: 200, reason: 'Late arrival penalty (3 instances > 15 mins)' },
+      'September 2026': { isWaived: false, deductionAmount: 200, reason: 'Professional Tax statutory deduction' },
+      'August 2026': { isWaived: false, deductionAmount: 200, reason: 'Professional Tax statutory deduction' },
+      'November 2026': { isWaived: false, deductionAmount: 200, reason: 'Professional Tax statutory deduction' }
+    }
+  };
+};
+
+const getMonthLabel = (mStr) => {
+  if (!mStr) return 'November 2026';
+  const [y, m] = mStr.split('-').map(Number);
+  if (!y || !m) return 'November 2026';
+  return new Date(y, m - 1, 1).toLocaleDateString('en-IN', { month: 'long', year: 'numeric' });
+};
+
 export function PayrollManagement() {
   const toast = useToast();
   const {
@@ -121,6 +150,128 @@ export function PayrollManagement() {
   const [policyNightRate, setPolicyNightRate] = useState(payrollPolicy?.driverAllowanceRules?.nightAllowance || 250);
   const [policyLongDistRate, setPolicyLongDistRate] = useState(payrollPolicy?.driverAllowanceRules?.longDistanceAllowance || 400);
   const [policyOvernightRate, setPolicyOvernightRate] = useState(payrollPolicy?.driverAllowanceRules?.overnightAllowance || 500);
+
+  // Staff Deduction Overrides (Admin controlled with 1-click cancel/waive & mandatory reason)
+  const [deductionOverrides, setDeductionOverrides] = useState(loadStaffDeductionConfig);
+  const [isDeductionModalOpen, setIsDeductionModalOpen] = useState(false);
+  const [deductionTarget, setDeductionTarget] = useState(null);
+  const [deductionAmountInput, setDeductionAmountInput] = useState('200');
+  const [deductionReasonInput, setDeductionReasonInput] = useState('Professional Tax (PT) statutory deduction');
+  const [isDeductionWaivedInput, setIsDeductionWaivedInput] = useState(false);
+
+  useEffect(() => {
+    const handleSync = () => {
+      setDeductionOverrides(loadStaffDeductionConfig());
+    };
+    window.addEventListener('mak_staff_deduction_updated', handleSync);
+    window.addEventListener('storage', handleSync);
+    return () => {
+      window.removeEventListener('mak_staff_deduction_updated', handleSync);
+      window.removeEventListener('storage', handleSync);
+    };
+  }, []);
+
+  const getStaffDeductionInfo = (p) => {
+    const isDriver = Boolean(
+      p?.isDriver ||
+      p?.salaryCategory === 'Category C' ||
+      p?.salaryCategory === 'Category B' ||
+      p?.salaryCategory?.toLowerCase().includes('trip') ||
+      p?.salaryCategory?.toLowerCase().includes('driver') ||
+      String(p?.designation || '').toLowerCase().includes('driver') ||
+      String(p?.designation || '').toLowerCase().includes('per-trip') ||
+      p?.department === 'Fleet Logistics' ||
+      Boolean(p?.driverId)
+    );
+    if (isDriver) {
+      return { isWaived: true, amount: 0, reason: 'Exempt (Trip-Based Driver)' };
+    }
+    const mLabel = getMonthLabel(month);
+    const cfg = deductionOverrides.months?.[mLabel] || {
+      isWaived: deductionOverrides.isWaived || false,
+      deductionAmount: deductionOverrides.deductionAmount ?? 200,
+      reason: deductionOverrides.reason || 'Professional Tax (PT) statutory deduction'
+    };
+    return {
+      isWaived: Boolean(cfg.isWaived),
+      amount: cfg.isWaived ? 0 : Number(cfg.deductionAmount || 0),
+      reason: cfg.reason || 'Professional Tax (PT) statutory deduction'
+    };
+  };
+
+  const handleOpenDeductionModal = (p) => {
+    setDeductionTarget(p);
+    const mLabel = getMonthLabel(month);
+    const currentCfg = deductionOverrides.months?.[mLabel] || {
+      isWaived: deductionOverrides.isWaived || false,
+      deductionAmount: deductionOverrides.deductionAmount ?? 200,
+      reason: deductionOverrides.reason || 'Professional Tax (PT) statutory deduction'
+    };
+    setIsDeductionWaivedInput(Boolean(currentCfg.isWaived));
+    setDeductionAmountInput(String(currentCfg.deductionAmount ?? 200));
+    setDeductionReasonInput(currentCfg.reason || 'Professional Tax (PT) statutory deduction');
+    setIsDeductionModalOpen(true);
+  };
+
+  const handleQuickWaiveDeduction = (p) => {
+    const mLabel = getMonthLabel(month);
+    const currentConfig = loadStaffDeductionConfig();
+    const updated = {
+      ...currentConfig,
+      months: {
+        ...(currentConfig.months || {}),
+        [mLabel]: {
+          isWaived: true,
+          deductionAmount: 0,
+          reason: 'Waived / Cancelled by Operations Admin'
+        }
+      }
+    };
+    localStorage.setItem(STAFF_DEDUCTION_STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('mak_staff_deduction_updated', { detail: updated }));
+    setDeductionOverrides(updated);
+    toast.success(`Deduction cancelled & waived for ${p.employeeName || 'Staff'}! Full gross salary reinstated.`);
+  };
+
+  const handleSaveDeduction = (e) => {
+    if (e) e.preventDefault();
+    if (!deductionTarget) return;
+
+    if (!isDeductionWaivedInput && (!deductionReasonInput || !deductionReasonInput.trim())) {
+      toast.error('Please specify the mandatory reason for the deduction.');
+      return;
+    }
+
+    const mLabel = getMonthLabel(month);
+    const currentConfig = loadStaffDeductionConfig();
+    const amount = isDeductionWaivedInput ? 0 : (Number(deductionAmountInput) || 0);
+    const reason = isDeductionWaivedInput
+      ? 'Waived / Cancelled by Operations Admin'
+      : deductionReasonInput.trim();
+
+    const updated = {
+      ...currentConfig,
+      months: {
+        ...(currentConfig.months || {}),
+        [mLabel]: {
+          isWaived: isDeductionWaivedInput,
+          deductionAmount: amount,
+          reason: reason
+        }
+      }
+    };
+
+    localStorage.setItem(STAFF_DEDUCTION_STORAGE_KEY, JSON.stringify(updated));
+    window.dispatchEvent(new CustomEvent('mak_staff_deduction_updated', { detail: updated }));
+    setDeductionOverrides(updated);
+    setIsDeductionModalOpen(false);
+
+    if (isDeductionWaivedInput) {
+      toast.success(`Deduction cancelled & waived! Full ₹42,000 gross salary reinstated.`);
+    } else {
+      toast.success(`Deduction of ₹${amount} applied. Reason: "${reason}"`);
+    }
+  };
 
   // Sync month change
   useEffect(() => {
@@ -532,7 +683,7 @@ export function PayrollManagement() {
             Automatic Attendance-Based Payroll
           </h1>
           <p style={{ fontSize: '0.85rem', color: '#64748b', marginTop: '0.25rem', margin: 0 }}>
-            Proportionate attendance pay, driver trip allowances, statutory deductions & salary disbursements for {month}
+            Proportionate attendance pay ({new Date(parseInt((month || '2026-11').split('-')[0], 10), parseInt((month || '2026-11').split('-')[1], 10), 0).getDate()} Days Cycle), driver trip allowances, admin-controlled deductions &amp; salary disbursements for {getMonthLabel(month)}
           </p>
         </div>
 
@@ -945,33 +1096,71 @@ export function PayrollManagement() {
                           </span>
                         </div>
                       </>
-                    ) : (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
-                          <span>Monthly Salary:</span>
-                          <strong style={{ color: '#1e293b' }}>₹{cardGross.toLocaleString('en-IN')}</strong>
-                        </div>
+                    ) : (() => {
+                      const deductInfo = getStaffDeductionInfo(p);
+                      const finalStaffCardNet = Math.max(0, cardAttPay + cardTripAllow - deductInfo.amount);
 
-                        <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2C3480', fontWeight: 600 }}>
-                          <span>Attendance Pay ({pDays} / {schedDays} days):</span>
-                          <strong style={{ color: '#16a34a' }}>₹{cardAttPay.toLocaleString('en-IN')}</strong>
-                        </div>
-
-                        {cardTripAllow > 0 && (
-                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669' }}>
-                            <span>Allowances:</span>
-                            <strong>+₹{cardTripAllow.toLocaleString('en-IN')}</strong>
+                      return (
+                        <>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#475569' }}>
+                            <span>Monthly Salary:</span>
+                            <strong style={{ color: '#1e293b' }}>₹{cardGross.toLocaleString('en-IN')}</strong>
                           </div>
-                        )}
 
-                        <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '0.45rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 800, color: '#2C3480', fontSize: '0.85rem' }}>NET PAYABLE:</span>
-                          <span style={{ fontWeight: 800, color: '#2C3480', fontSize: '1.15rem' }}>
-                            ₹{cardNetPay.toLocaleString('en-IN')}
-                          </span>
-                        </div>
-                      </>
-                    )}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', color: '#2C3480', fontWeight: 600 }}>
+                            <span>Attendance Pay ({pDays} / {schedDays} days):</span>
+                            <strong style={{ color: '#16a34a' }}>₹{cardAttPay.toLocaleString('en-IN')}</strong>
+                          </div>
+
+                          {cardTripAllow > 0 && (
+                            <div style={{ display: 'flex', justifyContent: 'space-between', color: '#059669' }}>
+                              <span>Allowances:</span>
+                              <strong>+₹{cardTripAllow.toLocaleString('en-IN')}</strong>
+                            </div>
+                          )}
+
+                          {/* Admin Deduction Control Pill */}
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.75rem', backgroundColor: deductInfo.isWaived ? '#f0fdf4' : '#fef2f2', padding: '0.35rem 0.6rem', borderRadius: '6px', border: deductInfo.isWaived ? '1px solid #bbf7d0' : '1px solid #fecaca' }}>
+                            <div>
+                              <span style={{ color: deductInfo.isWaived ? '#166534' : '#991b1b', fontWeight: 700, display: 'block' }}>
+                                {deductInfo.isWaived ? '✓ Deduction Waived by Admin' : `Deduction: -₹${deductInfo.amount}`}
+                              </span>
+                              {!deductInfo.isWaived && deductInfo.reason && (
+                                <span style={{ color: '#64748b', fontSize: '0.68rem', fontStyle: 'italic', display: 'block', maxWidth: '200px' }}>
+                                  {deductInfo.reason}
+                                </span>
+                              )}
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.25rem' }}>
+                              {!deductInfo.isWaived ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); handleQuickWaiveDeduction(p); }}
+                                  style={{ border: 'none', background: '#dc2626', color: '#fff', fontSize: '0.65rem', padding: '0.15rem 0.4rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
+                                  title="1-click: Cancel / Waive deduction"
+                                >
+                                  ✕ Waive
+                                </button>
+                              ) : null}
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); handleOpenDeductionModal(p); }}
+                                style={{ border: '1px solid #cbd5e1', background: '#ffffff', color: '#2C3480', fontSize: '0.68rem', padding: '0.15rem 0.4rem', borderRadius: '4px', cursor: 'pointer', fontWeight: 700 }}
+                              >
+                                {deductInfo.isWaived ? '+ Deduct' : 'Edit'}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div style={{ borderTop: '1px dashed #cbd5e1', paddingTop: '0.45rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <span style={{ fontWeight: 800, color: '#2C3480', fontSize: '0.85rem' }}>NET PAYABLE:</span>
+                            <span style={{ fontWeight: 800, color: '#2C3480', fontSize: '1.15rem' }}>
+                              ₹{finalStaffCardNet.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
 
                   {/* Actions Row */}
@@ -986,6 +1175,18 @@ export function PayrollManagement() {
                       >
                         <Edit3 size={13} style={{ marginRight: '0.25rem' }} /> Edit Salary
                       </Button>
+
+                      {!isDriver && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          style={{ color: '#dc2626' }}
+                          onClick={() => handleOpenDeductionModal(p)}
+                          title="Control Staff Deduction (Waive or specify reason)"
+                        >
+                          <Sliders size={13} style={{ marginRight: '0.25rem' }} /> Deductions
+                        </Button>
+                      )}
 
                       <Button
                         size="sm"
@@ -1051,6 +1252,7 @@ export function PayrollManagement() {
                     </div>
                   </th>
                   <th style={{ padding: '0.75rem 0.75rem', textAlign: 'right' }}>Allowances</th>
+                  <th style={{ padding: '0.75rem 0.75rem', textAlign: 'center' }}>Deductions</th>
                   <th style={{ padding: '0.75rem 1rem', textAlign: 'right', cursor: 'pointer' }} onClick={() => handleSort('netSalary')}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.25rem' }}>
                       Net Payable <ArrowUpDown size={12} />
@@ -1063,7 +1265,7 @@ export function PayrollManagement() {
               <tbody>
                 {paginatedPayrolls.length === 0 ? (
                   <tr>
-                    <td colSpan={12} style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
+                    <td colSpan={13} style={{ padding: '3rem', textAlign: 'center', color: '#64748b' }}>
                       No payroll records match the selected filters.
                     </td>
                   </tr>
@@ -1099,7 +1301,10 @@ export function PayrollManagement() {
                     const tblTripEarnings = Number(p.earningsBreakdown?.attendancePay ?? (tblTripCount * tblPerTripRate));
                     const tblTripAllowances = Number(p.earningsBreakdown?.tripAllowances || p.driverTripSummary?.totalAllowances || 0);
                     const tblDriverNetPay = tblTripEarnings + tblTripAllowances;
-                    const rowNetPay = isDriver ? tblDriverNetPay : tblNetPay;
+
+                    const rowDeductInfo = getStaffDeductionInfo(p);
+                    const rowDeductAmount = isDriver ? 0 : rowDeductInfo.amount;
+                    const rowNetPay = isDriver ? tblDriverNetPay : Math.max(0, tblNetPay - rowDeductAmount);
                     const tblDue = Math.max(0, rowNetPay - Number(p.totalPaidAmount || 0));
 
                     return (
@@ -1159,6 +1364,28 @@ export function PayrollManagement() {
                           ₹{(isDriver ? tblTripAllowances : allowancesTotal).toLocaleString('en-IN')}
                         </td>
 
+                        <td style={{ padding: '0.75rem 0.5rem', textAlign: 'center' }}>
+                          {isDriver ? (
+                            <span style={{ color: '#94a3b8', fontSize: '0.75rem' }}>—</span>
+                          ) : rowDeductInfo.isWaived ? (
+                            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '0.1rem' }}>
+                              <span style={{ color: '#16a34a', fontWeight: 800, fontSize: '0.75rem' }}>₹0</span>
+                              <span style={{ fontSize: '0.65rem', backgroundColor: '#dcfce7', color: '#15803d', padding: '0.1rem 0.35rem', borderRadius: '4px', fontWeight: 700 }}>
+                                Waived
+                              </span>
+                            </div>
+                          ) : (
+                            <div style={{ display: 'inline-flex', flexDirection: 'column', alignItems: 'center', gap: '0.1rem' }}>
+                              <span style={{ color: '#dc2626', fontWeight: 800, fontSize: '0.75rem' }}>-₹{rowDeductInfo.amount}</span>
+                              {rowDeductInfo.reason && (
+                                <span style={{ fontSize: '0.65rem', color: '#64748b', fontStyle: 'italic', maxWidth: '130px', lineHeight: 1.15 }}>
+                                  {rowDeductInfo.reason}
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </td>
+
                         <td style={{ padding: '0.75rem 1rem', textAlign: 'right', fontWeight: 800, color: '#2C3480', fontSize: '0.95rem' }}>
                           ₹{rowNetPay.toLocaleString('en-IN')}
                         </td>
@@ -1200,6 +1427,15 @@ export function PayrollManagement() {
                             >
                               <Edit3 size={13} /> Edit
                             </button>
+                            {!isDriver && (
+                              <button
+                                onClick={() => handleOpenDeductionModal(p)}
+                                style={{ border: 'none', background: '#fef2f2', color: '#dc2626', cursor: 'pointer', padding: '0.3rem 0.45rem', borderRadius: '4px', fontSize: '0.72rem', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '0.2rem' }}
+                                title="Admin Deduction Control (Waive or specify reason)"
+                              >
+                                <Sliders size={12} /> Deduct
+                              </button>
+                            )}
                             <button
                               onClick={() => handleOpenSlip(p)}
                               style={{ border: 'none', background: 'transparent', color: '#2C3480', cursor: 'pointer', padding: '0.2rem' }}
@@ -1997,7 +2233,8 @@ export function PayrollManagement() {
                 Math.round((slipMonthlySalary / slipWorkingDays) * slipPayableDays)
               );
               const slipOfficeAllowances = Number(slipData.earningsBreakdown?.tripAllowances || 0);
-              const slipOfficeNetPay = slipAttendancePay + slipOfficeAllowances;
+              const slipDeductInfo = getStaffDeductionInfo(slipData);
+              const slipOfficeNetPay = Math.max(0, slipAttendancePay + slipOfficeAllowances - slipDeductInfo.amount);
 
               if (isDriverSlip) {
                 return (
@@ -2116,6 +2353,25 @@ export function PayrollManagement() {
                         <span style={{ fontWeight: 700 }}>+₹{slipOfficeAllowances.toLocaleString('en-IN')}</span>
                       </div>
                     )}
+
+                    {/* Admin Deductions Statement Box */}
+                    {slipDeductInfo.isWaived ? (
+                      <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.65rem 0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span style={{ fontWeight: 700, color: '#166534', fontSize: '0.85rem' }}>✓ Deductions: Waived by Admin</span>
+                          <div style={{ fontSize: '0.72rem', color: '#15803d' }}>No deductions withheld for this payroll cycle (Cancelled by Admin)</div>
+                        </div>
+                        <span style={{ fontWeight: 800, color: '#16a34a' }}>₹0</span>
+                      </div>
+                    ) : (
+                      <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.65rem 0.85rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <span style={{ fontWeight: 700, color: '#991b1b', fontSize: '0.85rem' }}>Applied Deductions: -₹{slipDeductInfo.amount}</span>
+                          <div style={{ fontSize: '0.72rem', color: '#b91c1c' }}>Reason: {slipDeductInfo.reason}</div>
+                        </div>
+                        <span style={{ fontWeight: 800, color: '#dc2626' }}>-₹{slipDeductInfo.amount}</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* Net Pay Banner */}
@@ -2125,7 +2381,7 @@ export function PayrollManagement() {
                         NET PAYABLE SALARY
                       </div>
                       <div style={{ fontSize: '0.8rem', color: '#64748b' }}>
-                        Amount calculated from attendance ({slipPayableDays} of {slipWorkingDays} days)
+                        Attendance ({slipPayableDays} of {slipWorkingDays} days) {slipDeductInfo.isWaived ? '• Deduction Waived (₹0)' : `• Deductions: -₹${slipDeductInfo.amount}`}
                       </div>
                     </div>
                     <div style={{ fontSize: '1.75rem', fontWeight: 900, color: '#2C3480' }}>
@@ -2442,6 +2698,168 @@ export function PayrollManagement() {
           </form>
         );
       })()}
+      </Modal>
+
+      {/* MODAL 6: Admin Staff Deductions Control Modal */}
+      <Modal
+        isOpen={isDeductionModalOpen}
+        onClose={() => setIsDeductionModalOpen(false)}
+        title={`Staff Salary Deduction Control — ${deductionTarget?.employeeName || 'Staff'}`}
+        subtitle={`Staff: ${deductionTarget?.employeeCode || deductionTarget?.employeeId || 'Staff'} • Cycle: ${getMonthLabel(month)} • Monthly Salary: ₹${Number(deductionTarget?.earningsBreakdown?.monthlyGrossSalary || deductionTarget?.monthlySalary || 42000).toLocaleString('en-IN')}`}
+        size="md"
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.5rem', width: '100%' }}>
+            <Button variant="ghost" onClick={() => setIsDeductionModalOpen(false)}>Cancel</Button>
+            <Button
+              variant="primary"
+              onClick={handleSaveDeduction}
+              style={{ backgroundColor: '#2C3480' }}
+            >
+              Save &amp; Apply Changes
+            </Button>
+          </div>
+        }
+      >
+        <form onSubmit={handleSaveDeduction} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {/* Decision Box: Waive vs Apply */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            <label style={{ fontSize: '0.8125rem', fontWeight: 800, color: '#334155', textTransform: 'uppercase' }}>
+              Admin Action on Deduction
+            </label>
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => setIsDeductionWaivedInput(false)}
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: '10px',
+                  border: !isDeductionWaivedInput ? '2px solid #2C3480' : '1px solid #cbd5e1',
+                  backgroundColor: !isDeductionWaivedInput ? '#EEF0FD' : '#ffffff',
+                  color: !isDeductionWaivedInput ? '#2C3480' : '#475569',
+                  fontWeight: 800,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <Sliders size={16} /> Apply Deduction
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setIsDeductionWaivedInput(true)}
+                style={{
+                  padding: '0.75rem 1rem',
+                  borderRadius: '10px',
+                  border: isDeductionWaivedInput ? '2px solid #16a34a' : '1px solid #cbd5e1',
+                  backgroundColor: isDeductionWaivedInput ? '#ecfdf5' : '#ffffff',
+                  color: isDeductionWaivedInput ? '#15803d' : '#475569',
+                  fontWeight: 800,
+                  fontSize: '0.875rem',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.4rem'
+                }}
+              >
+                <CheckCircle2 size={16} /> ✕ Cancel / Waive (₹0)
+              </button>
+            </div>
+          </div>
+
+          {isDeductionWaivedInput ? (
+            <div style={{ backgroundColor: '#ecfdf5', border: '1.5px solid #a7f3d0', borderRadius: '10px', padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
+              <div style={{ color: '#065f46', fontWeight: 800, fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                <Check size={16} /> Deduction Will Be Fully Waived (₹0)
+              </div>
+              <p style={{ margin: 0, fontSize: '0.8rem', color: '#047857' }}>
+                The admin has chosen to cancel/waive this staff member's deduction for {getMonthLabel(month)}. The employee will receive 100% full gross pay with ₹0 deduction shown on their Staff Portal and salary slip.
+              </p>
+            </div>
+          ) : (
+            <>
+              {/* Deduction Amount */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
+                  Deduction Amount (₹) *
+                </label>
+                <Input
+                  type="number"
+                  value={deductionAmountInput}
+                  onChange={(e) => setDeductionAmountInput(e.target.value)}
+                  placeholder="e.g. 200 or 500"
+                  min="0"
+                  required
+                />
+              </div>
+
+              {/* Deduction Reason - Mandatory */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: '#334155', marginBottom: '0.35rem' }}>
+                  Mention Reason for Deduction * <span style={{ color: '#dc2626' }}>(Required)</span>
+                </label>
+                <Input
+                  value={deductionReasonInput}
+                  onChange={(e) => setDeductionReasonInput(e.target.value)}
+                  placeholder="Specify why this deduction is applied..."
+                  required
+                />
+                <span style={{ fontSize: '0.72rem', color: '#64748b', marginTop: '0.3rem', display: 'block' }}>
+                  This reason is explicitly displayed to the staff member on their dashboard, payslips, and salary breakdown.
+                </span>
+
+                {/* Quick Presets */}
+                <div style={{ marginTop: '0.5rem', display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                  <span style={{ fontSize: '0.7rem', color: '#64748b', alignSelf: 'center', marginRight: '0.2rem' }}>Presets:</span>
+                  {[
+                    'Late arrival penalty (3 instances > 15 mins)',
+                    'Unapproved absence on office duty',
+                    'Professional Tax (PT) statutory deduction',
+                    'Advance salary recovery installment',
+                    'Damage to office property / asset'
+                  ].map((preset, pIdx) => (
+                    <button
+                      key={pIdx}
+                      type="button"
+                      onClick={() => setDeductionReasonInput(preset)}
+                      style={{
+                        padding: '0.2rem 0.5rem',
+                        fontSize: '0.7rem',
+                        borderRadius: '6px',
+                        border: '1px solid #cbd5e1',
+                        backgroundColor: '#f8fafc',
+                        cursor: 'pointer',
+                        color: '#334155'
+                      }}
+                    >
+                      {preset.split('(')[0].trim()}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Impact preview */}
+          <div style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', padding: '0.85rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div>
+              <span style={{ fontSize: '0.72rem', color: '#64748b', fontWeight: 700, textTransform: 'uppercase' }}>Net Disbursed to Staff</span>
+              <div style={{ fontSize: '0.8rem', color: '#334155' }}>
+                ₹{Number(deductionTarget?.earningsBreakdown?.monthlyGrossSalary || deductionTarget?.monthlySalary || 42000).toLocaleString('en-IN')} Gross {isDeductionWaivedInput ? '- ₹0 (Waived)' : `- ₹${Number(deductionAmountInput || 0).toLocaleString('en-IN')}`}
+              </div>
+            </div>
+            <div style={{ fontSize: '1.25rem', fontWeight: 800, color: '#2C3480' }}>
+              ₹{(
+                Number(deductionTarget?.earningsBreakdown?.monthlyGrossSalary || deductionTarget?.monthlySalary || 42000) -
+                (isDeductionWaivedInput ? 0 : Number(deductionAmountInput || 0))
+              ).toLocaleString('en-IN')}
+            </div>
+          </div>
+        </form>
       </Modal>
     </div>
   );

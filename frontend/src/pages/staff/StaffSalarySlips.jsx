@@ -77,7 +77,8 @@ export function StaffSalarySlips() {
                 <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>Month / Cycle</th>
                 <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>Slip Number</th>
                 <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>Attendance %</th>
-                <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>{isDriverStaff ? 'Rate Basis' : 'Monthly Salary'}</th>
+                <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>{isDriverStaff ? 'Rate Basis' : 'Gross Salary'}</th>
+                <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>Deductions</th>
                 <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>Calculated Net Pay</th>
                 <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700 }}>Payment Method</th>
                 <th style={{ padding: '0.85rem 1rem', color: '#475569', fontWeight: 700, textAlign: 'right' }}>Actions</th>
@@ -100,6 +101,25 @@ export function StaffSalarySlips() {
                       </span>
                     ) : (
                       `₹${slip.grossSalary.toLocaleString()}`
+                    )}
+                  </td>
+                  <td style={{ padding: '0.85rem 1rem' }}>
+                    {slip.isDeductionWaived || slip.totalDeductions === 0 ? (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span style={{ color: '#16a34a', fontWeight: 800 }}>₹0</span>
+                        <span style={{ fontSize: '0.7rem', color: '#15803d', backgroundColor: '#dcfce7', padding: '0.1rem 0.4rem', borderRadius: '4px', width: 'fit-content', fontWeight: 700 }}>
+                          Waived by Admin
+                        </span>
+                      </div>
+                    ) : (
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                        <span style={{ color: '#dc2626', fontWeight: 800 }}>-₹{slip.totalDeductions.toLocaleString()}</span>
+                        {slip.deductionReason && (
+                          <span style={{ fontSize: '0.7rem', color: '#64748b', fontStyle: 'italic', maxWidth: '200px', lineHeight: 1.25 }}>
+                            Reason: {slip.deductionReason}
+                          </span>
+                        )}
+                      </div>
                     )}
                   </td>
                   <td style={{ padding: '0.85rem 1rem', fontWeight: 800, color: '#166534' }}>₹{slip.netSalary.toLocaleString()}</td>
@@ -219,9 +239,9 @@ export function StaffSalarySlips() {
                 </div>
 
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.9rem' }}>
-                  <span style={{ color: '#475569' }}>Total Working Days in Month:</span>
+                  <span style={{ color: '#475569' }}>Total Calendar Days in Month:</span>
                   <span style={{ fontWeight: 700, color: '#0f172a' }}>
-                    {selectedSlip.workingDays || 26} Days
+                    {selectedSlip.totalMonthDays || 30} Days ({selectedSlip.workingDays || 26} Scheduled Working Days)
                   </span>
                 </div>
 
@@ -232,11 +252,30 @@ export function StaffSalarySlips() {
                   </span>
                 </div>
 
+                {/* Deductions Statement Box */}
+                {selectedSlip.isDeductionWaived || selectedSlip.totalDeductions === 0 ? (
+                  <div style={{ backgroundColor: '#f0fdf4', border: '1px solid #bbf7d0', borderRadius: '8px', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ color: '#166534', fontWeight: 700, fontSize: '0.85rem' }}>✓ Deduction: Waived by Admin</div>
+                      <div style={{ color: '#15803d', fontSize: '0.75rem' }}>No salary deduction applied for this cycle (Cancelled by Operations Admin)</div>
+                    </div>
+                    <span style={{ fontWeight: 800, color: '#16a34a', fontSize: '1rem' }}>₹0</span>
+                  </div>
+                ) : (
+                  <div style={{ backgroundColor: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', padding: '0.75rem 1rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div>
+                      <div style={{ color: '#991b1b', fontWeight: 700, fontSize: '0.85rem' }}>Deductions Applied: -₹{selectedSlip.totalDeductions.toLocaleString()}</div>
+                      <div style={{ color: '#b91c1c', fontSize: '0.75rem' }}>Reason: {selectedSlip.deductionReason || 'Admin Statutory Deduction'}</div>
+                    </div>
+                    <span style={{ fontWeight: 800, color: '#dc2626', fontSize: '1rem' }}>-₹{selectedSlip.totalDeductions.toLocaleString()}</span>
+                  </div>
+                )}
+
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.95rem', borderTop: '1px dashed #cbd5e1', paddingTop: '0.65rem' }}>
                   <div>
-                    <span style={{ fontWeight: 700, color: '#2C3480' }}>Calculated Amount (From Attendance):</span>
+                    <span style={{ fontWeight: 700, color: '#2C3480' }}>Calculated Net Amount:</span>
                     <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
-                      (₹{(selectedSlip.grossSalary || salaryDetails.monthlyBasicSalary || 42000).toLocaleString()} &divide; {selectedSlip.workingDays || 26} days) &times; {selectedSlip.presentDays || 26} days
+                      (₹{(selectedSlip.grossSalary || salaryDetails.monthlyBasicSalary || 42000).toLocaleString()} &divide; {selectedSlip.workingDays || 26} days) &times; {selectedSlip.presentDays || 26} days {selectedSlip.isDeductionWaived || selectedSlip.totalDeductions === 0 ? '- ₹0 deduction' : `- ₹${selectedSlip.totalDeductions} deduction`}
                     </div>
                   </div>
                   <span style={{ fontWeight: 800, color: '#16a34a', fontSize: '1.25rem' }}>
