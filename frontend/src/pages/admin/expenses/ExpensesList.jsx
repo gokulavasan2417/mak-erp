@@ -26,7 +26,8 @@ import {
   RotateCcw,
   CreditCard,
   Send,
-  Upload
+  Upload,
+  Wrench
 } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
@@ -49,7 +50,8 @@ export function ExpensesList() {
     approveExpenseClaim,
     rejectExpenseClaim,
     markExpensePaid,
-    submitExpenseClaim
+    submitExpenseClaim,
+    addAdminExpense
   } = tripCtx;
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -61,12 +63,18 @@ export function ExpensesList() {
 
   // Add Expense Voucher Modal (Internal Admin)
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newCategory, setNewCategory] = useState('Fuel');
+  const [expenseType, setExpenseType] = useState('service'); // 'service' (Car Service & Maintenance) or 'trip' (Booking Trip)
+  const [selectedVehicleReg, setSelectedVehicleReg] = useState('');
+  const [serviceSubCategory, setServiceSubCategory] = useState('General Periodic Service (Oil, Filters & Fluids)');
+  const [workshopName, setWorkshopName] = useState('');
+  const [odometerKm, setOdometerKm] = useState('');
+  const [invoiceNumber, setInvoiceNumber] = useState('');
+  const [newCategory, setNewCategory] = useState('Vehicle Maintenance');
   const [newAmount, setNewAmount] = useState('');
   const [newBookingId, setNewBookingId] = useState(bookings[0]?.id || bookings[0]?._id || bookings[0]?.bookingNumber || 'BK-508331');
   const [newDriverId, setNewDriverId] = useState(drivers[0]?.id || drivers[0]?._id || 'DRV-001');
   const [newDescription, setNewDescription] = useState('');
-  const [newPaymentMethod, setNewPaymentMethod] = useState('HPCL PetroCard');
+  const [newPaymentMethod, setNewPaymentMethod] = useState('Company Card / Bank Transfer');
 
   // Review & Approve / Reject Modal
   const [reviewModalExpense, setReviewModalExpense] = useState(null);
@@ -210,33 +218,96 @@ export function ExpensesList() {
     setMarkPaidExpense(null);
   };
 
-  // Create internal expense
+  // Create internal expense (Car Service or Trip Voucher)
   const handleCreateInternalExpense = (e) => {
     e.preventDefault();
     if (!newAmount || parseFloat(newAmount) <= 0) {
-      toast.error('Please enter a valid amount');
+      toast.error('Please enter a valid expense amount');
       return;
     }
 
-    const matchedDrv = (drivers || []).find((d) => (d.id && d.id === newDriverId) || (d._id && d._id === newDriverId));
-    const matchedBkg = (bookings || []).find((b) => (b.id && b.id === newBookingId) || (b._id && b._id === newBookingId) || (b.bookingNumber && b.bookingNumber === newBookingId));
+    if (expenseType === 'service') {
+      const activeVehicle = (vehicles || []).find(
+        (v) => (v.regNo || v.registrationNumber || v.numberPlate || v.id) === selectedVehicleReg
+      ) || vehicles[0];
 
-    submitExpenseClaim({
-      bookingId: newBookingId,
-      tripId: matchedBkg?.bookingNumber || `TRP-${newBookingId}`,
-      driverId: newDriverId,
-      driverName: matchedDrv?.name || matchedDrv?.fullName || 'Assigned Driver',
-      vehicleRegNo: matchedBkg?.assignedVehicle?.regNo || matchedBkg?.assignedVehicle?.registrationNumber || 'KA-01-MJ-8890',
-      category: newCategory,
-      amount: parseFloat(newAmount),
-      description: newDescription || `Admin logged ${newCategory} expense`,
-      paymentMethod: newPaymentMethod,
-      notes: 'Logged directly from Admin Operations Desk'
-    });
+      const vReg = activeVehicle?.regNo || activeVehicle?.registrationNumber || activeVehicle?.numberPlate || selectedVehicleReg || 'TN-09-CD-1234';
+      const vName = activeVehicle?.name || activeVehicle?.model || 'Vehicle';
+      const matchedDrv = (drivers || []).find((d) => (d.id && d.id === newDriverId) || (d._id && d._id === newDriverId));
+
+      const fullDesc = newDescription.trim()
+        ? `${serviceSubCategory} for ${vReg} (${vName}) at ${workshopName || 'Authorized Service Centre'} — ${newDescription.trim()}`
+        : `${serviceSubCategory} for ${vReg} (${vName}) at ${workshopName || 'Authorized Service Centre'}`;
+
+      if (addAdminExpense) {
+        addAdminExpense({
+          category: 'Vehicle Maintenance',
+          subCategory: serviceSubCategory,
+          vehicleId: activeVehicle?.id || activeVehicle?._id || '',
+          vehicleRegNo: vReg,
+          vehicleNumber: vReg,
+          workshopName: workshopName.trim() || 'Authorized Workshop',
+          odometerKm: odometerKm ? Number(odometerKm) : 0,
+          invoiceNo: invoiceNumber.trim() || `SRV-${Date.now().toString().slice(-5)}`,
+          receiptNumber: invoiceNumber.trim() || `SRV-${Date.now().toString().slice(-5)}`,
+          amount: parseFloat(newAmount),
+          driverId: newDriverId || null,
+          driverName: matchedDrv?.name || matchedDrv?.fullName || 'Fleet Supervisor',
+          description: fullDesc,
+          paymentMethod: newPaymentMethod || 'Company Card / Bank Transfer',
+          status: 'Approved',
+          source: 'Fleet Maintenance'
+        });
+      } else {
+        submitExpenseClaim({
+          category: 'Vehicle Maintenance',
+          vehicleRegNo: vReg,
+          amount: parseFloat(newAmount),
+          description: fullDesc,
+          driverName: matchedDrv?.name || 'Fleet Supervisor'
+        });
+      }
+    } else {
+      // Trip / Booking linked expense
+      const matchedDrv = (drivers || []).find((d) => (d.id && d.id === newDriverId) || (d._id && d._id === newDriverId));
+      const matchedBkg = (bookings || []).find((b) => (b.id && b.id === newBookingId) || (b._id && b._id === newBookingId) || (b.bookingNumber && b.bookingNumber === newBookingId));
+
+      if (addAdminExpense) {
+        addAdminExpense({
+          bookingId: newBookingId || matchedBkg?.id || null,
+          tripId: matchedBkg?.bookingNumber || `TRP-${newBookingId || '001'}`,
+          driverId: newDriverId,
+          driverName: matchedDrv?.name || matchedDrv?.fullName || 'Assigned Driver',
+          vehicleRegNo: matchedBkg?.assignedVehicle?.regNo || matchedBkg?.assignedVehicle?.registrationNumber || 'KA-01-MJ-8890',
+          category: newCategory,
+          amount: parseFloat(newAmount),
+          description: newDescription || `Admin logged ${newCategory} operational expense`,
+          paymentMethod: newPaymentMethod,
+          status: 'Approved',
+          source: 'Admin Operations'
+        });
+      } else {
+        submitExpenseClaim({
+          bookingId: newBookingId,
+          tripId: matchedBkg?.bookingNumber || `TRP-${newBookingId}`,
+          driverId: newDriverId,
+          driverName: matchedDrv?.name || matchedDrv?.fullName || 'Assigned Driver',
+          vehicleRegNo: matchedBkg?.assignedVehicle?.regNo || matchedBkg?.assignedVehicle?.registrationNumber || 'KA-01-MJ-8890',
+          category: newCategory,
+          amount: parseFloat(newAmount),
+          description: newDescription || `Admin logged ${newCategory} expense`,
+          paymentMethod: newPaymentMethod,
+          notes: 'Logged directly from Admin Operations Desk'
+        });
+      }
+    }
 
     setIsAddModalOpen(false);
     setNewAmount('');
     setNewDescription('');
+    setWorkshopName('');
+    setOdometerKm('');
+    setInvoiceNumber('');
   };
 
   return (
@@ -458,12 +529,22 @@ export function ExpensesList() {
                   </div>
                 </div>
 
-                <div style={{ fontSize: '0.8125rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
+                <div style={{ fontSize: '0.8125rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                  {exp.vehicleRegNo || exp.vehicleNumber ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#1e293b' }}>
+                      <Car size={15} color="#2C3480" />
+                      <span>Vehicle: <strong style={{ color: '#2C3480' }}>{exp.vehicleRegNo || exp.vehicleNumber}</strong></span>
+                      {exp.workshopName && <span style={{ color: '#64748b' }}>• Workshop: {exp.workshopName}</span>}
+                      {exp.odometerKm > 0 && <span style={{ color: '#64748b' }}>• {Number(exp.odometerKm).toLocaleString('en-IN')} KM</span>}
+                    </div>
+                  ) : (
+                    <div>
+                      Booking: <Link to={`/admin/bookings/${exp.bookingId || exp.id || ''}`} style={{ fontWeight: 700, color: '#2C3480' }}>{exp.bookingId || exp.id || 'N/A'}</Link> • Trip: <span className="font-mono">{exp.tripId || 'TRP-001'}</span>
+                    </div>
+                  )}
                   <div>
-                    Booking: <Link to={`/admin/bookings/${exp.bookingId || exp.id || ''}`} style={{ fontWeight: 700, color: '#2C3480' }}>{exp.bookingId || exp.id || 'N/A'}</Link> • Trip: <span className="font-mono">{exp.tripId || 'TRP-001'}</span>
-                  </div>
-                  <div>
-                    Payee / Driver: <strong>{exp.driverName || exp.payee || 'Operations'}</strong> • Date: {formatDateDMY(exp.expenseDate || exp.date) || 'Recent'}
+                    Handled by: <strong>{exp.driverName || exp.payee || 'Operations'}</strong> • Date: {formatDateDMY(exp.expenseDate || exp.date) || 'Recent'}
+                    {exp.invoiceNo && <span> • Bill #{exp.invoiceNo}</span>}
                   </div>
                   <div>
                     Description: <em>"{exp.description || exp.title || exp.category || 'Expense Voucher'}"</em>
@@ -531,7 +612,7 @@ export function ExpensesList() {
               <thead>
                 <tr style={{ borderBottom: '1.5px solid #e2e8f0', textAlign: 'left', color: '#64748b' }}>
                   <th style={{ padding: '0.75rem 1rem' }}>Claim ID</th>
-                  <th style={{ padding: '0.75rem 1rem' }}>Booking / Trip</th>
+                  <th style={{ padding: '0.75rem 1rem' }}>Vehicle / Booking</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Driver</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Category</th>
                   <th style={{ padding: '0.75rem 1rem' }}>Claimed</th>
@@ -550,12 +631,28 @@ export function ExpensesList() {
                       <span className="font-mono" style={{ fontWeight: 800, color: '#2C3480' }}>{expId}</span>
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>
-                      <Link to={`/admin/bookings/${exp.bookingId || exp.id || ''}`} style={{ fontWeight: 700, color: '#2C3480' }}>
-                        {exp.bookingId || exp.id || 'N/A'}
-                      </Link>
+                      {exp.vehicleRegNo || exp.vehicleNumber ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: '#2C3480' }}>
+                          <Car size={13} color="#2C3480" />
+                          {exp.vehicleRegNo || exp.vehicleNumber}
+                        </span>
+                      ) : (
+                        <Link to={`/admin/bookings/${exp.bookingId || exp.id || ''}`} style={{ fontWeight: 700, color: '#2C3480' }}>
+                          {exp.bookingId || exp.id || 'N/A'}
+                        </Link>
+                      )}
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>{exp.driverName || exp.payee || 'Operations'}</td>
-                    <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>{exp.category}</td>
+                    <td style={{ padding: '0.75rem 1rem', fontWeight: 600 }}>
+                      {exp.category === 'Vehicle Maintenance' ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: '#b45309' }}>
+                          <Wrench size={13} />
+                          {exp.subCategory || 'Car Service'}
+                        </span>
+                      ) : (
+                        exp.category
+                      )}
+                    </td>
                     <td style={{ padding: '0.75rem 1rem', fontWeight: 700 }}>₹{Number(exp.amount || 0).toLocaleString('en-IN')}</td>
                     <td style={{ padding: '0.75rem 1rem', fontWeight: 700, color: '#059669' }}>
                       {exp.approvedAmount !== undefined ? `₹${Number(exp.approvedAmount || 0).toLocaleString('en-IN')}` : '—'}
@@ -626,109 +723,337 @@ export function ExpensesList() {
         onPageChange={setCurrentPage}
       />
 
-      {/* MODAL 1: Admin Log Internal Voucher */}
+      {/* MODAL 1: Admin Log Operational / Car Service Expense Voucher */}
       <Modal
         isOpen={isAddModalOpen}
         onClose={() => setIsAddModalOpen(false)}
-        title="Log Operational Expense Voucher"
-        subtitle="Record direct fleet maintenance, road permits, or depot disbursements"
+        title="Log Operational / Car Service Expense"
+        subtitle="Record direct vehicle maintenance, workshop bills, road permits, or trip expenses"
+        maxWidth="640px"
         footer={
           <>
             <Button variant="ghost" onClick={() => setIsAddModalOpen(false)}>Cancel</Button>
             <Button variant="primary" onClick={handleCreateInternalExpense} style={{ backgroundColor: '#2C3480' }}>
-              Record Voucher
+              Record Expense Voucher
             </Button>
           </>
         }
       >
         <form onSubmit={handleCreateInternalExpense} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          {/* Segmented Switcher: Car Service vs Trip Expense */}
           <div>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
-              Linked Booking Manifest *
+            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem' }}>
+              Expense Type &amp; Purpose *
             </label>
-            <select
-              value={newBookingId}
-              onChange={(e) => setNewBookingId(e.target.value)}
-              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem' }}
-            >
-              {(bookings || []).map((b) => {
-                if (!b) return null;
-                const bId = b.id || b._id || b.refId || b.bookingNumber || '';
-                const bNum = b.bookingNumber || b.refId || bId;
-                const cName = String(b.customerName || b.fullName || b.name || 'Customer').trim();
-                const pLoc = typeof b.pickupLocation === 'string' ? b.pickupLocation : (typeof b.fromLocation === 'string' ? b.fromLocation : 'Pickup');
-                const dLoc = typeof b.destination === 'string' ? b.destination : (typeof b.toLocation === 'string' ? b.toLocation : (typeof b.dropLocation === 'string' ? b.dropLocation : 'Destination'));
-                const pickup = pLoc.split(',')[0].trim();
-                const dest = dLoc.split(',')[0].trim();
-                return (
-                  <option key={bId} value={bId}>
-                    {bNum} — {cName} ({pickup} → {dest})
-                  </option>
-                );
-              })}
-            </select>
-          </div>
-
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
-                Expense Category *
-              </label>
-              <select
-                value={newCategory}
-                onChange={(e) => setNewCategory(e.target.value)}
-                style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem' }}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', backgroundColor: '#f1f5f9', padding: '0.3rem', borderRadius: '10px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  setExpenseType('service');
+                  setNewCategory('Vehicle Maintenance');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: '0.8125rem',
+                  backgroundColor: expenseType === 'service' ? '#2C3480' : 'transparent',
+                  color: expenseType === 'service' ? '#ffffff' : '#64748b',
+                  transition: 'all 0.2s ease',
+                  boxShadow: expenseType === 'service' ? '0 2px 8px rgba(44, 52, 128, 0.25)' : 'none'
+                }}
               >
-                {categories.filter((c) => c !== 'All Categories').map((c) => (
-                  <option key={c} value={c}>{c}</option>
-                ))}
-              </select>
+                <Wrench size={15} />
+                <span>Car Service &amp; Maintenance</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setExpenseType('trip');
+                  if (newCategory === 'Vehicle Maintenance') setNewCategory('Fuel');
+                }}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.45rem',
+                  padding: '0.6rem 0.75rem',
+                  borderRadius: '8px',
+                  border: 'none',
+                  cursor: 'pointer',
+                  fontWeight: 700,
+                  fontSize: '0.8125rem',
+                  backgroundColor: expenseType === 'trip' ? '#2C3480' : 'transparent',
+                  color: expenseType === 'trip' ? '#ffffff' : '#64748b',
+                  transition: 'all 0.2s ease',
+                  boxShadow: expenseType === 'trip' ? '0 2px 8px rgba(44, 52, 128, 0.25)' : 'none'
+                }}
+              >
+                <Car size={15} />
+                <span>Trip / Booking Expense</span>
+              </button>
             </div>
-
-            <div>
-              <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
-                Amount (₹) *
-              </label>
-              <Input
-                type="number"
-                value={newAmount}
-                onChange={(e) => setNewAmount(e.target.value)}
-                placeholder="e.g. 1500"
-                required
-              />
-            </div>
           </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
-              Responsible Driver *
-            </label>
-            <select
-              value={newDriverId}
-              onChange={(e) => setNewDriverId(e.target.value)}
-              style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem' }}
-            >
-              {(drivers || []).map((d, dIdx) => {
-                const dVal = d.id || d._id || `drv-${dIdx}`;
-                const dName = d.name || d.fullName || 'Driver';
-                return (
-                  <option key={dVal} value={dVal}>{dName} ({dVal})</option>
-                );
-              })}
-            </select>
-          </div>
+          {/* MODE A: CAR SERVICE & FLEET MAINTENANCE */}
+          {expenseType === 'service' ? (
+            <>
+              {/* Target Vehicle Dropdown */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                  Target Vehicle / Car *
+                </label>
+                <select
+                  value={selectedVehicleReg || (vehicles[0]?.regNo || vehicles[0]?.registrationNumber || vehicles[0]?.numberPlate || '')}
+                  onChange={(e) => setSelectedVehicleReg(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem', backgroundColor: '#ffffff' }}
+                  required
+                >
+                  {(vehicles || []).map((v, vIdx) => {
+                    const reg = v.regNo || v.registrationNumber || v.numberPlate || v.id || `VEH-${vIdx}`;
+                    const vName = v.name || v.model || v.vehicleName || 'Vehicle';
+                    const owner = v.ownership || v.ownershipType || 'MAK Owned';
+                    return (
+                      <option key={v.id || reg} value={reg}>
+                        {reg} — {vName} ({owner})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
 
-          <div>
-            <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
-              Description *
-            </label>
-            <Input
-              value={newDescription}
-              onChange={(e) => setNewDescription(e.target.value)}
-              placeholder="e.g. Brake pad inspection & oil top-up at authorized service station"
-              required
-            />
-          </div>
+              {/* Service Subcategory & Workshop Name */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Service / Repair Type *
+                  </label>
+                  <select
+                    value={serviceSubCategory}
+                    onChange={(e) => setServiceSubCategory(e.target.value)}
+                    style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem', backgroundColor: '#ffffff' }}
+                  >
+                    <option value="General Periodic Service (Oil, Filters & Fluids)">General Periodic Service (Oil, Filters & Fluids)</option>
+                    <option value="Engine Oil & Filter Change">Engine Oil & Filter Change</option>
+                    <option value="Brake System & Brake Pads Replacement">Brake System & Brake Pads Replacement</option>
+                    <option value="Tyre Replacement & Wheel Alignment">Tyre Replacement & Wheel Alignment</option>
+                    <option value="AC Servicing & Gas Recharge">AC Servicing & Gas Recharge</option>
+                    <option value="Battery Replacement & Electrical Check">Battery Replacement & Electrical Check</option>
+                    <option value="Clutch & Transmission Repair">Clutch & Transmission Repair</option>
+                    <option value="Suspension & Shock Absorber Overhaul">Suspension & Shock Absorber Overhaul</option>
+                    <option value="Denting, Painting & Body Repair">Denting, Painting & Body Repair</option>
+                    <option value="Full Water Wash & Interior Detailing">Full Water Wash & Interior Detailing</option>
+                    <option value="FC (Fitness Certificate) & RTO Inspection">FC (Fitness Certificate) & RTO Inspection</option>
+                    <option value="Emergency Breakdown Repair">Emergency Breakdown Repair</option>
+                    <option value="Spare Parts & Accessories Replacement">Spare Parts & Accessories Replacement</option>
+                    <option value="Other Fleet Maintenance">Other Fleet Maintenance</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Workshop / Service Centre
+                  </label>
+                  <Input
+                    type="text"
+                    value={workshopName}
+                    onChange={(e) => setWorkshopName(e.target.value)}
+                    placeholder="e.g. Authorized Toyota Lanson / Bosch Workshop"
+                  />
+                </div>
+              </div>
+
+              {/* Amount & Payment Method */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Service Cost Amount (₹) *
+                  </label>
+                  <Input
+                    type="number"
+                    value={newAmount}
+                    onChange={(e) => setNewAmount(e.target.value)}
+                    placeholder="e.g. 7500"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Payment Mode
+                  </label>
+                  <select
+                    value={newPaymentMethod}
+                    onChange={(e) => setNewPaymentMethod(e.target.value)}
+                    style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem', backgroundColor: '#ffffff' }}
+                  >
+                    <option value="Company Card / Bank Transfer">Company Card / Bank Transfer</option>
+                    <option value="UPI / Direct Transfer">UPI / Direct Transfer</option>
+                    <option value="Cash Payment">Cash Payment</option>
+                    <option value="Corporate Account / Credit">Corporate Account / Credit</option>
+                  </select>
+                </div>
+              </div>
+
+              {/* Odometer & Invoice No */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Odometer Reading (KM)
+                  </label>
+                  <Input
+                    type="number"
+                    value={odometerKm}
+                    onChange={(e) => setOdometerKm(e.target.value)}
+                    placeholder="e.g. 48500"
+                  />
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Workshop Bill / Invoice No
+                  </label>
+                  <Input
+                    type="text"
+                    value={invoiceNumber}
+                    onChange={(e) => setInvoiceNumber(e.target.value)}
+                    placeholder="e.g. INV-SER-4819"
+                  />
+                </div>
+              </div>
+
+              {/* Attending Driver / Fleet Supervisor */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                  Handled By (Driver / Fleet Supervisor)
+                </label>
+                <select
+                  value={newDriverId}
+                  onChange={(e) => setNewDriverId(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem', backgroundColor: '#ffffff' }}
+                >
+                  <option value="">Internal Fleet Depot / Operations</option>
+                  {(drivers || []).map((d, dIdx) => {
+                    const dVal = d.id || d._id || `drv-${dIdx}`;
+                    const dName = d.name || d.fullName || 'Driver';
+                    return (
+                      <option key={dVal} value={dVal}>{dName} ({dVal})</option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              {/* Work Done Description */}
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                  Service Description / Parts Replaced Notes
+                </label>
+                <Input
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="e.g. 50,000 km routine service, synthetic engine oil replaced, brake pad cleaning, wheel alignment"
+                />
+              </div>
+            </>
+          ) : (
+            /* MODE B: TRIP / BOOKING LINKED EXPENSE */
+            <>
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                  Linked Booking Manifest *
+                </label>
+                <select
+                  value={newBookingId}
+                  onChange={(e) => setNewBookingId(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem', backgroundColor: '#ffffff' }}
+                >
+                  {(bookings || []).map((b) => {
+                    if (!b) return null;
+                    const bId = b.id || b._id || b.refId || b.bookingNumber || '';
+                    const bNum = b.bookingNumber || b.refId || bId;
+                    const cName = String(b.customerName || b.fullName || b.name || 'Customer').trim();
+                    const pLoc = typeof b.pickupLocation === 'string' ? b.pickupLocation : (typeof b.fromLocation === 'string' ? b.fromLocation : 'Pickup');
+                    const dLoc = typeof b.destination === 'string' ? b.destination : (typeof b.toLocation === 'string' ? b.toLocation : (typeof b.dropLocation === 'string' ? b.dropLocation : 'Destination'));
+                    const pickup = pLoc.split(',')[0].trim();
+                    const dest = dLoc.split(',')[0].trim();
+                    return (
+                      <option key={bId} value={bId}>
+                        {bNum} — {cName} ({pickup} → {dest})
+                      </option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Expense Category *
+                  </label>
+                  <select
+                    value={newCategory}
+                    onChange={(e) => setNewCategory(e.target.value)}
+                    style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem', backgroundColor: '#ffffff' }}
+                  >
+                    {categories.filter((c) => c !== 'All Categories').map((c) => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                    Amount (₹) *
+                  </label>
+                  <Input
+                    type="number"
+                    value={newAmount}
+                    onChange={(e) => setNewAmount(e.target.value)}
+                    placeholder="e.g. 1500"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                  Responsible Driver *
+                </label>
+                <select
+                  value={newDriverId}
+                  onChange={(e) => setNewDriverId(e.target.value)}
+                  style={{ width: '100%', padding: '0.6rem 0.75rem', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '0.875rem', backgroundColor: '#ffffff' }}
+                >
+                  {(drivers || []).map((d, dIdx) => {
+                    const dVal = d.id || d._id || `drv-${dIdx}`;
+                    const dName = d.name || d.fullName || 'Driver';
+                    return (
+                      <option key={dVal} value={dVal}>{dName} ({dVal})</option>
+                    );
+                  })}
+                </select>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, color: '#334155', marginBottom: '0.25rem' }}>
+                  Description *
+                </label>
+                <Input
+                  value={newDescription}
+                  onChange={(e) => setNewDescription(e.target.value)}
+                  placeholder="e.g. Fastag toll deduction, passenger food allowance, parking slip"
+                  required
+                />
+              </div>
+            </>
+          )}
         </form>
       </Modal>
 

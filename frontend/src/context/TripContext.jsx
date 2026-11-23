@@ -2858,6 +2858,12 @@ export function TripProvider({ children }) {
       driverId: expenseData.driverId || null,
       driverName: expenseData.driverName || 'Admin Operations',
       vehicleRegNo: expenseData.vehicleRegNo || null,
+      vehicleNumber: expenseData.vehicleNumber || expenseData.vehicleRegNo || null,
+      vehicleId: expenseData.vehicleId || null,
+      workshopName: expenseData.workshopName || null,
+      invoiceNo: expenseData.invoiceNo || null,
+      subCategory: expenseData.subCategory || null,
+      odometerKm: expenseData.odometerKm || 0,
       category: expenseData.category,
       expenseDate: todayStr,
       amount: amt,
@@ -2865,7 +2871,7 @@ export function TripProvider({ children }) {
       description: expenseData.description || `${expenseData.category} operational expense`,
       receiptUrl: expenseData.receiptUrl || null,
       status: 'Approved',
-      source: 'Admin Entry',
+      source: expenseData.source || 'Admin Entry',
       submittedAt: new Date().toISOString().replace('T', ' ').substring(0, 16),
       approvedBy: 'Admin Ops',
       approvalDate: todayStr,
@@ -2877,17 +2883,20 @@ export function TripProvider({ children }) {
     // Persist Expense to MongoDB Atlas via financeService
     if (financeService?.createExpense) {
       financeService.createExpense({
-        category: expenseData.category,
+        category: expenseData.category === 'Vehicle Maintenance' ? 'Maintenance' : expenseData.category,
         amount: amt,
         tripId: expenseData.tripId || null,
         bookingRef: expenseData.bookingId || null,
         driverId: expenseData.driverId || null,
         driverName: expenseData.driverName || 'Admin Operations',
+        vehicleId: expenseData.vehicleId || null,
+        vehicleNumber: expenseData.vehicleRegNo || null,
+        vehicleRegNo: expenseData.vehicleRegNo || null,
         date: todayStr,
         status: 'Paid',
         notes: expenseData.description || `${expenseData.category} operational expense`,
         receiptUrl: expenseData.receiptUrl || null,
-        paymentMode: 'Bank Transfer'
+        paymentMode: expenseData.paymentMethod || 'Bank Transfer'
       }).catch((err) => console.warn('Expense Atlas persistence note:', err.message));
     }
 
