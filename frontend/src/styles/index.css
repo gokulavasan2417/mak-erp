@@ -339,3 +339,87 @@ button, input, select, textarea {
 .animate-pulse {
   animation: pulse 1.5s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
+
+/* ========================================================
+   NOTIFICATION POPOVER MOBILE ALIGNMENT
+   ======================================================== */
+.notification-popover-dropdown {
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  width: 350px;
+  max-width: calc(100vw - 1.5rem);
+  background-color: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.15), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  z-index: 1050;
+  overflow: hidden;
+}
+
+.mobile-popover-backdrop {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .mobile-popover-backdrop {
+    display: block !important;
+    position: fixed !important;
+    inset: 0 !important;
+    background-color: rgba(15, 23, 42, 0.45) !important;
+    backdrop-filter: blur(2px) !important;
+    z-index: 1040 !important;
+  }
+
+  .notification-popover-dropdown {
+    position: fixed !important;
+    top: 62px !important;
+    left: 10px !important;
+    right: 10px !important;
+    width: auto !important;
+    max-width: calc(100vw - 20px) !important;
+    max-height: calc(100dvh - 80px) !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.4) !important;
+    z-index: 1050 !important;
+  }
+}
+
+/* ========================================================
+   DRIVER PORTAL TOPBAR MOBILE RESPONSIVENESS
+   ======================================================== */
+.driver-topbar {
+  height: 64px;
+  background-color: var(--bg-surface);
+  border-bottom: 1px solid var(--border-light);
+  padding: 0 1.25rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  position: relative;
+  z-index: 1010;
+}
+
+@media (max-width: 768px) {
+  .driver-topbar {
+    padding: 0 0.625rem !important;
+    gap: 0.375rem !important;
+  }
+  .driver-topbar-info {
+    display: none !important;
+  }
+  .driver-topbar-logout-text {
+    display: none !important;
+  }
+}
+
+@media (max-width: 480px) {
+  .driver-sos-text-long {
+    display: none !important;
+  }
+  .driver-sos-btn {
+    padding: 0.35rem 0.65rem !important;
+    font-size: 0.75rem !important;
+  }
+}

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { Bell, CheckCheck, Clock } from 'lucide-react';
 import { useAdminData } from '../../context/AdminDataContext';
 import { useDriverData } from '../../context/DriverDataContext';
+import { useVendorData } from '../../context/VendorDataContext';
 
 export function NotificationPopover({ portal = 'admin' }) {
   const navigate = useNavigate();
@@ -11,14 +12,12 @@ export function NotificationPopover({ portal = 'admin' }) {
 
   let adminCtx = null;
   let driverCtx = null;
-  try {
-    adminCtx = useAdminData();
-  } catch (e) {}
-  try {
-    driverCtx = useDriverData();
-  } catch (e) {}
+  let vendorCtx = null;
+  try { adminCtx = useAdminData(); } catch (e) {}
+  try { driverCtx = useDriverData(); } catch (e) {}
+  try { vendorCtx = useVendorData(); } catch (e) {}
 
-  const activeCtx = portal === 'driver' ? driverCtx : adminCtx;
+  const activeCtx = portal === 'driver' ? driverCtx : portal === 'vendor' ? vendorCtx : adminCtx;
   const notifications = activeCtx?.notifications || [];
   const unreadCount = notifications.filter(n => n.unread || (n.isRead !== undefined && !n.isRead)).length;
 
@@ -29,18 +28,26 @@ export function NotificationPopover({ portal = 'admin' }) {
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    document.addEventListener('touchstart', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
   }, []);
 
   const markAllAsRead = () => {
     if (activeCtx?.markAllNotificationsRead) {
       activeCtx.markAllNotificationsRead();
+    } else if (activeCtx?.markAllNotificationsAsRead) {
+      activeCtx.markAllNotificationsAsRead();
     }
   };
 
   const handleMarkOne = (item) => {
     if (activeCtx?.markNotificationRead && item?.id) {
       activeCtx.markNotificationRead(item.id);
+    } else if (activeCtx?.markNotificationAsRead && item?.id) {
+      activeCtx.markNotificationAsRead(item.id);
     }
     const targetUrl = item?.actionUrl || item?.actionLink || item?.link;
     if (targetUrl) {
@@ -97,29 +104,21 @@ export function NotificationPopover({ portal = 'admin' }) {
       </button>
 
       {isOpen && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 'calc(100% + 8px)',
-            right: 0,
-            width: 'min(320px, calc(100vw - 2rem))',
-            backgroundColor: 'var(--bg-surface)',
-            border: '1px solid var(--border-light)',
-            borderRadius: 'var(--radius-lg)',
-            boxShadow: 'var(--shadow-xl)',
-            zIndex: 1000,
-            overflow: 'hidden'
-          }}
-        >
+        <>
           <div
-            style={{
-              padding: '0.875rem 1rem',
-              borderBottom: '1px solid var(--border-light)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'space-between'
-            }}
-          >
+            className="mobile-popover-backdrop"
+            onClick={() => setIsOpen(false)}
+          />
+          <div className="notification-popover-dropdown">
+            <div
+              style={{
+                padding: '0.875rem 1rem',
+                borderBottom: '1px solid var(--border-light)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between'
+              }}
+            >
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <span style={{ fontWeight: 600, fontSize: '0.875rem', color: 'var(--text-main)' }}>Notifications</span>
               {unreadCount > 0 && (
@@ -191,6 +190,7 @@ export function NotificationPopover({ portal = 'admin' }) {
             )}
           </div>
         </div>
+        </>
       )}
     </div>
   );

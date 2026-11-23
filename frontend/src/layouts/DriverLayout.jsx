@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
 import { Topbar } from '../components/layout/Topbar';
+import { NotificationPopover } from '../components/common/NotificationPopover';
 import { Button } from '../components/ui/Button';
 import { Modal } from '../components/ui/Modal';
 import { LoadingSpinner } from '../components/common/LoadingSpinner';
@@ -132,23 +133,9 @@ function DriverLayoutContent() {
 
       <div className="main-content">
         {/* Custom Enhanced Topbar with Driver SOS */}
-        <div
-          style={{
-            height: '64px',
-            backgroundColor: 'var(--bg-surface)',
-            borderBottom: '1px solid var(--border-light)',
-            padding: '0 1.5rem',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '1rem',
-            flexShrink: 0,
-            position: 'relative',
-            zIndex: 1010
-          }}
-        >
+        <div className="driver-topbar">
           {/* Left: Mobile hamburger & Driver Identity */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
             <button
               onClick={() => setIsMobileOpen(true)}
               className="mobile-menu-btn"
@@ -158,6 +145,7 @@ function DriverLayoutContent() {
                 cursor: 'pointer',
                 padding: '0.375rem',
                 color: 'var(--text-main)',
+                display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center'
               }}
@@ -166,12 +154,12 @@ function DriverLayoutContent() {
               <Menu size={22} />
             </button>
 
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem', minWidth: 0 }}>
               {safeDriver?.avatar || safeDriver?.photo ? (
                 <img
                   src={safeDriver?.avatar || safeDriver?.photo}
                   alt={safeDriver?.displayName || safeDriver?.name || 'Driver'}
-                  style={{ width: '38px', height: '38px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #2C3480' }}
+                  style={{ width: '36px', height: '36px', borderRadius: '50%', objectFit: 'cover', border: '2px solid #2C3480', flexShrink: 0 }}
                   onError={(e) => {
                     e.currentTarget.style.display = 'none';
                   }}
@@ -179,25 +167,26 @@ function DriverLayoutContent() {
               ) : (
                 <div
                   style={{
-                    width: '38px',
-                    height: '38px',
+                    width: '36px',
+                    height: '36px',
                     borderRadius: '50%',
                     backgroundColor: '#2C3480',
                     color: '#ffffff',
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    fontSize: '0.875rem',
+                    fontSize: '0.8125rem',
                     fontWeight: 700,
-                    border: '2px solid #ffffff'
+                    border: '2px solid #ffffff',
+                    flexShrink: 0
                   }}
                 >
                   {(safeDriver?.displayName || safeDriver?.name || 'DR').substring(0, 2).toUpperCase()}
                 </div>
               )}
-              <div>
+              <div className="driver-topbar-info" style={{ minWidth: 0 }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-                  <span style={{ fontWeight: 700, fontSize: '0.9375rem', color: 'var(--text-main)' }}>
+                  <span style={{ fontWeight: 700, fontSize: '0.875rem', color: 'var(--text-main)', whiteSpace: 'nowrap' }}>
                     {safeDriver?.displayName || safeDriver?.fullName || safeDriver?.name || 'Driver Portal'}
                   </span>
                   <span
@@ -210,13 +199,14 @@ function DriverLayoutContent() {
                       borderRadius: '4px',
                       display: 'inline-flex',
                       alignItems: 'center',
-                      gap: '0.2rem'
+                      gap: '0.2rem',
+                      whiteSpace: 'nowrap'
                     }}
                   >
                     <ShieldCheck size={11} /> Verified Driver
                   </span>
                 </div>
-                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>
                   ID: <strong style={{ color: '#2C3480', fontFamily: 'monospace' }}>{safeDriver?.id || 'DRV-NEW'}</strong> &bull; Duty:{' '}
                   <span style={{ color: safeDriver?.dutyStatus === 'Available' ? '#10b981' : '#f59e0b', fontWeight: 600 }}>
                     {safeDriver?.dutyStatus || 'Available'}
@@ -226,69 +216,62 @@ function DriverLayoutContent() {
             </div>
           </div>
 
-          {/* Right: Quick SOS Emergency & Actions */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.875rem' }}>
+          {/* Right: Quick SOS Emergency, Notifications & Actions */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
             {/* SOS Button */}
             <button
               onClick={() => setIsSosModalOpen(true)}
+              className="driver-sos-btn"
               style={{
                 backgroundColor: '#dc2626',
                 color: '#ffffff',
                 border: 'none',
                 borderRadius: '8px',
-                padding: '0.45rem 0.9rem',
+                padding: '0.45rem 0.85rem',
                 fontSize: '0.8125rem',
                 fontWeight: 800,
-                letterSpacing: '0.04em',
+                letterSpacing: '0.03em',
                 display: 'flex',
                 alignItems: 'center',
-                gap: '0.4rem',
+                gap: '0.35rem',
                 cursor: 'pointer',
                 boxShadow: '0 2px 6px rgba(220, 38, 38, 0.35)',
-                transition: 'transform 0.1s ease'
+                transition: 'transform 0.1s ease',
+                flexShrink: 0
               }}
               onMouseEnter={(e) => (e.currentTarget.style.transform = 'scale(1.03)')}
               onMouseLeave={(e) => (e.currentTarget.style.transform = 'scale(1)')}
             >
-              <AlertOctagon size={16} /> EMERGENCY SOS
+              <AlertOctagon size={16} />
+              <span className="driver-sos-text-long">EMERGENCY </span>SOS
             </button>
 
-            {/* Notifications Shortcut */}
-            <NavLink
-              to="/driver/notifications"
-              style={{
-                position: 'relative',
-                color: 'var(--text-main)',
-                padding: '0.4rem',
-                display: 'flex',
-                alignItems: 'center'
-              }}
-            >
-              <Bell size={20} />
-              {unreadCount > 0 && (
-                <span
-                  style={{
-                    position: 'absolute',
-                    top: '2px',
-                    right: '2px',
-                    width: '8px',
-                    height: '8px',
-                    borderRadius: '50%',
-                    backgroundColor: '#dc2626'
-                  }}
-                />
-              )}
-            </NavLink>
+            {/* Notifications Shortcut with Popover */}
+            <NotificationPopover portal="driver" />
 
             {/* Logout / Switch */}
-            <Button
-              variant="ghost"
-              size="sm"
+            <button
               onClick={() => navigate('/driver/login')}
-              leftIcon={<LogOut size={15} />}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.4rem 0.65rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-medium)',
+                backgroundColor: 'transparent',
+                color: 'var(--text-main)',
+                fontSize: '0.8125rem',
+                fontWeight: 600,
+                cursor: 'pointer',
+                transition: 'background-color var(--transition-fast)'
+              }}
+              title="Log Out"
+              aria-label="Log Out"
             >
-              Logout
-            </Button>
+              <LogOut size={16} />
+              <span className="driver-topbar-logout-text">Logout</span>
+            </button>
           </div>
         </div>
 
