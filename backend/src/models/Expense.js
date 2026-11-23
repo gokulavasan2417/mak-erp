@@ -17,39 +17,38 @@ const expenseSchema = new mongoose.Schema(
     category: {
       type: String,
       required: true,
-      enum: [
-        'Fuel',
-        'Toll Plaza',
-        'Parking',
-        'Driver Allowance',
-        'Chauffeur Bata',
-        'Maintenance',
-        'State Permit Tax',
-        'Food & Refreshments',
-        'Office',
-        'Salary',
-        'Vendor',
-        'Trip',
-        'Other'
-      ]
+      trim: true
     },
+    subCategory: { type: String, default: '' },
+    workshopName: { type: String, default: '' },
+    odometerKm: { type: Number, default: 0 },
+    invoiceNo: { type: String, default: '' },
+    invoiceNumber: { type: String, default: '' },
     amount: { type: Number, required: true },
+    approvedAmount: { type: Number, default: null },
+    adminRemarks: { type: String, default: '' },
+    expenseType: { type: String, default: '' },
+    description: { type: String, default: '' },
+    source: { type: String, default: 'Operations' },
+    payee: { type: String, default: '' },
     date: { type: String, default: () => new Date().toISOString().split('T')[0] },
+    expenseDate: { type: String, default: '' },
     receiptNumber: { type: String, default: '' },
     receiptUrl: { type: String, default: '' },
     notes: { type: String, default: '' },
-    odometerKm: { type: Number, default: 0 },
     litersFilled: { type: Number, default: 0 },
     tollPlazaName: { type: String, default: '' },
     paymentMode: {
       type: String,
-      default: 'Fastag / UPI',
-      enum: ['Cash', 'UPI', 'Bank Transfer', 'Card', 'Fastag', 'Fastag / UPI', 'Company Card', 'Driver Personal Advance']
+      default: 'Fastag / UPI'
     },
+    paymentMethod: { type: String, default: 'Bank Transfer' },
+    paymentReference: { type: String, default: '' },
+    paymentDate: { type: String, default: '' },
     status: {
       type: String,
-      default: 'Pending',
-      enum: ['Pending', 'Approved', 'Rejected', 'Paid', 'Verified', 'Reimbursed']
+      default: 'Pending Approval',
+      enum: ['Pending', 'Pending Approval', 'Approved', 'Rejected', 'Paid', 'Verified', 'Reimbursed']
     },
     approvedBy: { type: String, default: '' },
     approvedAt: { type: Date, default: null },

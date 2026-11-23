@@ -533,22 +533,46 @@ export function TripProvider({ children }) {
                 const k = (re.id || re.expenseId || re._id || '').toString();
                 if (k) remoteMap.set(k, re);
               });
-              const merged = [...res.data];
+              const merged = res.data.map((re) => {
+                const k = (re.id || re.expenseId || re._id || '').toString();
+                const local = (prev || []).find((le) => (le.id || le.expenseId || le._id || '').toString() === k);
+                return {
+                  ...(local || {}),
+                  ...re,
+                  id: re.id || local?.id || re._id,
+                  category: re.category || local?.category,
+                  status: re.status || local?.status,
+                  amount: re.amount !== undefined ? re.amount : local?.amount,
+                  approvedAmount: re.approvedAmount !== undefined ? re.approvedAmount : (local?.approvedAmount !== undefined ? local.approvedAmount : (re.status === 'Approved' || re.status === 'Paid' ? re.amount : null))
+                };
+              });
+
               (prev || []).forEach((le) => {
                 const k = (le.id || le.expenseId || le._id || '').toString();
                 if (k && !remoteMap.has(k)) {
                   merged.push(le);
                   financeService.createExpense({
+                    id: le.id,
                     category: le.category,
+                    subCategory: le.subCategory,
+                    workshopName: le.workshopName,
+                    odometerKm: le.odometerKm,
+                    invoiceNo: le.invoiceNo,
                     amount: le.amount,
+                    approvedAmount: le.approvedAmount,
+                    adminRemarks: le.adminRemarks,
                     tripId: le.tripId,
                     bookingRef: le.bookingNumber || le.bookingId,
                     driverId: le.driverId,
                     driverName: le.driverName || le.payee,
-                    date: le.expenseDate || le.date,
-                    status: le.status || 'Approved',
+                    vehicleId: le.vehicleId,
+                    vehicleNumber: le.vehicleRegNo || le.vehicleNumber,
+                    vehicleRegNo: le.vehicleRegNo || le.vehicleNumber,
+                    date: le.expenseDate || le.date || new Date().toISOString().substring(0, 10),
+                    status: le.status || 'Pending Approval',
                     receiptUrl: le.receiptUrl,
-                    notes: le.description || le.notes,
+                    notes: le.description || le.notes || le.title,
+                    description: le.description || le.notes || le.title,
                     paymentMode: le.paymentMethod || 'Bank Transfer'
                   }).catch(() => {});
                 }
@@ -3133,7 +3157,10 @@ export function TripProvider({ children }) {
     }
 
     if (financeService?.updateExpenseStatus) {
-      financeService.updateExpenseStatus(claimId, 'Approved').catch(() => {});
+      financeService.updateExpenseStatus(claimId, 'Approved', {
+        approvedAmount: appAmt,
+        adminRemarks: adminRemarks || 'Approved by Operations Admin'
+      }).catch(() => {});
     }
 
     toast.success(`Expense claim #${claimId} approved for ₹${appAmt}`);
@@ -3202,7 +3229,9 @@ export function TripProvider({ children }) {
     }
 
     if (financeService?.updateExpenseStatus) {
-      financeService.updateExpenseStatus(claimId, 'Rejected').catch(() => {});
+      financeService.updateExpenseStatus(claimId, 'Rejected', {
+        reason: reason
+      }).catch(() => {});
     }
 
     toast.info(`Expense claim #${claimId} marked as Rejected.`);
@@ -3263,7 +3292,11 @@ export function TripProvider({ children }) {
     }
 
     if (financeService?.updateExpenseStatus) {
-      financeService.updateExpenseStatus(claimId, 'Paid').catch(() => {});
+      financeService.updateExpenseStatus(claimId, 'Paid', {
+        paymentReference: ref,
+        paymentMethod: method,
+        paymentDate: pDate
+      }).catch(() => {});
     }
 
     toast.success(`Expense #${claimId} marked as Paid!`);

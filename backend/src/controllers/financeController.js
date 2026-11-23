@@ -16,7 +16,7 @@ import { whitelistFields } from '../utils/fieldHelper.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
 import { buildTenantQuery } from '../middleware/tenantMiddleware.js';
 
-const VALID_EXPENSE_STATUSES = ['Pending', 'Approved', 'Rejected', 'Paid', 'Verified', 'Reimbursed'];
+const VALID_EXPENSE_STATUSES = ['Pending', 'Pending Approval', 'Approved', 'Rejected', 'Paid', 'Verified', 'Reimbursed'];
 
 export const financeController = {
   // ==========================================================================
@@ -147,22 +147,39 @@ export const financeController = {
       const tenantId = (req.tenantId || 'mak-tours').toLowerCase().trim();
 
       const ALLOWED_FIELDS = [
+        'id',
         'category',
+        'subCategory',
+        'workshopName',
+        'odometerKm',
+        'invoiceNo',
+        'invoiceNumber',
         'amount',
+        'approvedAmount',
+        'adminRemarks',
         'tripId',
         'bookingRef',
         'bookingId',
         'driverId',
         'driverName',
         'vehicleId',
+        'vehicleNumber',
+        'vehicleRegNo',
         'date',
+        'expenseDate',
         'receiptNumber',
         'receiptUrl',
         'notes',
-        'odometerKm',
+        'description',
         'litersFilled',
         'tollPlazaName',
         'paymentMode',
+        'paymentMethod',
+        'paymentReference',
+        'paymentDate',
+        'expenseType',
+        'source',
+        'payee',
         'status'
       ];
       const cleanData = whitelistFields(req.body, ALLOWED_FIELDS);
@@ -174,8 +191,8 @@ export const financeController = {
         });
       }
 
-      const id = await sequenceService.getNextExpenseId(tenantId);
-      const expenseStatus = cleanData.status && VALID_EXPENSE_STATUSES.includes(cleanData.status) ? cleanData.status : 'Pending';
+      const id = cleanData.id || req.body.id || await sequenceService.getNextExpenseId(tenantId);
+      const expenseStatus = cleanData.status && VALID_EXPENSE_STATUSES.includes(cleanData.status) ? cleanData.status : 'Pending Approval';
 
       const newExpense = new Expense({
         ...cleanData,
@@ -320,13 +337,32 @@ export const financeController = {
 
       existing.status = status;
 
+      if (req.body.approvedAmount !== undefined && req.body.approvedAmount !== null) {
+        existing.approvedAmount = Number(req.body.approvedAmount);
+      }
+      if (req.body.adminRemarks) {
+        existing.adminRemarks = req.body.adminRemarks;
+      }
+      if (req.body.paymentReference) {
+        existing.paymentReference = req.body.paymentReference;
+      }
+      if (req.body.paymentMethod) {
+        existing.paymentMethod = req.body.paymentMethod;
+      }
+      if (req.body.paymentDate) {
+        existing.paymentDate = req.body.paymentDate;
+      }
+
       if (status === 'Approved') {
-        existing.approvedBy = req.user?.name || req.user?.email || 'Accountant';
+        existing.approvedBy = req.user?.name || req.user?.email || 'Operations Admin';
         existing.approvedAt = new Date();
+        if (existing.approvedAmount === null || existing.approvedAmount === undefined) {
+          existing.approvedAmount = existing.amount;
+        }
       } else if (status === 'Rejected') {
-        existing.rejectionReason = reason || 'Rejected by accountant';
+        existing.rejectionReason = reason || req.body.adminRemarks || 'Rejected by accountant';
       } else if (status === 'Paid') {
-        existing.paidBy = req.user?.name || req.user?.email || 'Accountant';
+        existing.paidBy = req.user?.name || req.user?.email || 'Finance Admin';
         existing.paidAt = new Date();
 
         // Post to ledger if not already posted

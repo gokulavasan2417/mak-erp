@@ -20,8 +20,8 @@ export const financeService = {
     return apiClient.post('/finance/expenses', expenseData);
   },
 
-  async updateExpenseStatus(id, status) {
-    return apiClient.patch(`/finance/expenses/${id}/status`, { status });
+  async updateExpenseStatus(id, status, extra = {}) {
+    return apiClient.patch(`/finance/expenses/${id}/status`, { status, ...extra });
   },
 
   /**

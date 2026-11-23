@@ -381,10 +381,10 @@ export function ExpensesList() {
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', paddingBottom: '3rem' }}>
       {/* Top Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
+      <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem' }}>
         <div>
-          <h1 style={{ fontSize: '1.625rem', fontWeight: 800, color: '#090d16', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
-            <Wrench size={26} color="#2C3480" />
+          <h1 style={{ fontSize: 'clamp(1.2rem, 3vw, 1.625rem)', fontWeight: 800, color: '#090d16', letterSpacing: '-0.02em', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <Wrench size={24} color="#2C3480" />
             Fleet Maintenance &amp; Operational Expenses
           </h1>
           <p style={{ fontSize: '0.875rem', color: '#64748b', marginTop: '0.25rem' }}>
@@ -392,7 +392,7 @@ export function ExpensesList() {
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', width: 'auto' }}>
           <div style={{ display: 'inline-flex', borderRadius: '8px', border: '1px solid #cbd5e1', overflow: 'hidden' }}>
             <button
               onClick={() => setViewMode('grid')}
@@ -455,8 +455,8 @@ export function ExpensesList() {
         </div>
       </div>
 
-      {/* Scope Segmented Filter (All vs Car Service vs Trip Claims) */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', backgroundColor: '#ffffff', padding: '0.5rem 0.75rem', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
+      {/* Scope Segmented Filter (All vs Car Service vs Trip Claims) - Horizontally Scrollable on Mobile */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', overflowX: 'auto', whiteSpace: 'nowrap', WebkitOverflowScrolling: 'touch', scrollbarWidth: 'none', backgroundColor: '#ffffff', padding: '0.5rem 0.75rem', borderRadius: '12px', border: '1px solid #e2e8f0', boxShadow: '0 1px 2px rgba(0,0,0,0.02)' }}>
         {[
           { id: 'all', label: `All Operational Expenses (${expenses.length})` },
           { id: 'service', label: `🚗 Car Services & Maintenance (${serviceCount})` },
@@ -469,6 +469,7 @@ export function ExpensesList() {
               setCurrentPage(1);
             }}
             style={{
+              flexShrink: 0,
               padding: '0.5rem 1rem',
               borderRadius: '8px',
               border: 'none',
@@ -485,23 +486,23 @@ export function ExpensesList() {
         ))}
       </div>
 
-      {/* KPI Cards */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
+      {/* KPI Cards: Total Expenses = Car Services & Maintenance + Driver Trip Claims */}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '0.875rem' }}>
         <div
-          onClick={() => { setScopeFilter('all'); setStatusFilter('Approved'); setCurrentPage(1); }}
+          onClick={() => { setScopeFilter('all'); setStatusFilter('All'); setCurrentPage(1); }}
           style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', cursor: 'pointer', transition: 'all 0.15s ease' }}
           onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
           onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
-          title="Click to view Approved Expenses"
+          title="Click to view All Expenses"
         >
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase' }}>
-            Total Approved Expenses
+            Total Expenses
           </div>
           <div style={{ fontSize: '1.65rem', fontWeight: 800, color: '#059669', marginTop: '0.35rem' }}>
-            ₹{(totalApproved || 0).toLocaleString('en-IN')}
+            ₹{((serviceTotal || 0) + (tripClaimsTotal || 0)).toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-            Included in Net Profit formula
+            Car Services (₹{(serviceTotal || 0).toLocaleString('en-IN')}) + Trip Claims (₹{(tripClaimsTotal || 0).toLocaleString('en-IN')})
           </div>
         </div>
 
@@ -560,24 +561,26 @@ export function ExpensesList() {
         </div>
       </div>
 
-      {/* Filter Toolbar */}
+      {/* Filter Toolbar - Fully Responsive */}
       <Card>
-        <CardBody style={{ padding: '1rem 1.25rem' }}>
+        <CardBody style={{ padding: '0.875rem 1rem' }}>
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.75rem', alignItems: 'center', justifyContent: 'space-between' }}>
-            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.35rem', flexWrap: 'wrap', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
               {['All', 'Pending Approval', 'Approved', 'Rejected', 'Paid'].map((st) => (
                 <button
                   key={st}
                   onClick={() => { setStatusFilter(st); setCurrentPage(1); }}
                   style={{
-                    padding: '0.45rem 0.85rem',
+                    flexShrink: 0,
+                    padding: '0.4rem 0.75rem',
                     borderRadius: '8px',
                     fontSize: '0.8125rem',
                     fontWeight: 700,
                     border: 'none',
                     cursor: 'pointer',
                     backgroundColor: statusFilter === st ? '#2C3480' : '#f1f5f9',
-                    color: statusFilter === st ? '#ffffff' : '#475569'
+                    color: statusFilter === st ? '#ffffff' : '#475569',
+                    transition: 'all 0.15s ease'
                   }}
                 >
                   {st}
@@ -585,12 +588,14 @@ export function ExpensesList() {
               ))}
             </div>
 
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap', flex: '1 1 280px', width: '100%' }}>
               <select
                 value={categoryFilter}
                 onChange={(e) => { setCategoryFilter(e.target.value); setCurrentPage(1); }}
                 style={{
-                  padding: '0.5rem 0.75rem',
+                  flex: '1 1 140px',
+                  minWidth: '130px',
+                  padding: '0.5rem 0.65rem',
                   borderRadius: '8px',
                   border: '1px solid #cbd5e1',
                   fontSize: '0.8125rem'
@@ -601,7 +606,7 @@ export function ExpensesList() {
                 ))}
               </select>
 
-              <div style={{ position: 'relative', minWidth: '240px' }}>
+              <div style={{ position: 'relative', flex: '2 1 180px', minWidth: '160px' }}>
                 <Search size={15} style={{ position: 'absolute', left: '0.75rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }} />
                 <input
                   type="text"
@@ -622,9 +627,9 @@ export function ExpensesList() {
         </CardBody>
       </Card>
 
-      {/* Grid or Table Display */}
+      {/* Grid or Table Display - Responsive minmax */}
       {viewMode === 'grid' ? (
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(420px, 1fr))', gap: '1.25rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(min(100%, 350px), 1fr))', gap: '1rem' }}>
           {paginatedExpenses.length === 0 ? (
             <div style={{ gridColumn: '1 / -1', padding: '3.5rem 2rem', textAlign: 'center', backgroundColor: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
               <Wrench size={40} style={{ color: '#cbd5e1', margin: '0 auto 0.75rem' }} />
@@ -906,7 +911,7 @@ export function ExpensesList() {
             <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 700, color: '#1e293b', marginBottom: '0.35rem' }}>
               Expense Type &amp; Purpose *
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', backgroundColor: '#f1f5f9', padding: '0.3rem', borderRadius: '10px' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', gap: '0.5rem', backgroundColor: '#f1f5f9', padding: '0.3rem', borderRadius: '10px' }}>
               <button
                 type="button"
                 onClick={() => {
