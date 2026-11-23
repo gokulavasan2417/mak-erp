@@ -463,7 +463,8 @@ export function Sidebar({
             display: 'flex',
             flexDirection: 'column',
             gap: '0.5rem',
-            backgroundColor: 'rgba(0, 0, 0, 0.25)'
+            backgroundColor: 'rgba(0, 0, 0, 0.35)',
+            flexShrink: 0
           }}
         >
           {/* User mini bar - Click to Edit Profile */}
@@ -523,9 +524,9 @@ export function Sidebar({
             )}
           </div>
 
-          {/* Action Row: Collapse Button + Logout (Logout hidden when collapsed) */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem' }}>
-            {onToggleCollapse && (
+          {/* Action Row: Collapse Button + Logout */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', width: '100%' }}>
+            {!isMobileOpen && onToggleCollapse && (
               <button
                 type="button"
                 onClick={onToggleCollapse}
@@ -552,25 +553,30 @@ export function Sidebar({
               </button>
             )}
 
-            {!isCollapsed && (
+            {(!isCollapsed || isMobileOpen) && (
               <button
                 type="button"
                 onClick={handleLogout}
                 style={{
+                  flex: isMobileOpen ? 1 : 'unset',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  padding: '0.5rem',
-                  background: 'rgba(239, 68, 68, 0.12)',
-                  border: '1px solid rgba(239, 68, 68, 0.25)',
-                  borderRadius: '6px',
+                  gap: '0.5rem',
+                  padding: isMobileOpen ? '0.625rem 1rem' : '0.5rem 0.75rem',
+                  background: 'rgba(239, 68, 68, 0.16)',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: '8px',
                   color: '#f87171',
                   cursor: 'pointer',
-                  transition: 'background-color 0.15s ease'
+                  fontSize: '0.8125rem',
+                  fontWeight: 600,
+                  transition: 'all 0.15s ease'
                 }}
                 title="Logout from ERP"
               >
                 <LogOut size={16} />
+                <span>Log Out</span>
               </button>
             )}
           </div>

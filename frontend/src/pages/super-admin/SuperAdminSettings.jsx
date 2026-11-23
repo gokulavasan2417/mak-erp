@@ -1,12 +1,21 @@
 import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Breadcrumbs } from '../../components/common/Breadcrumbs';
 import { Card, CardHeader, CardBody, CardFooter } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Badge } from '../../components/ui/Badge';
-import { Shield, Key, Mail, Database, Save, CheckCircle, RefreshCw } from 'lucide-react';
+import { Shield, Key, Mail, Database, Save, CheckCircle, RefreshCw, LogOut } from 'lucide-react';
 import { superAdminService } from '../../services/superAdminService';
+import { useAuth } from '../../hooks/useAuth';
 
 export function SuperAdminSettings() {
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
   const [activeTab, setActiveTab] = useState('security');
   const [settings, setSettings] = useState({
     sessionTimeout: 45,
@@ -117,7 +126,7 @@ export function SuperAdminSettings() {
               subtitle="Applies universally across all tenant sub-accounts"
             />
             <CardBody style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 250px), 1fr))', gap: '1.25rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.375rem', color: 'var(--text-main)' }}>
                     Session Timeout (Minutes)
@@ -185,7 +194,7 @@ export function SuperAdminSettings() {
               subtitle="Sends onboarding invitations, password resets, and license alert emails"
             />
             <CardBody style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '1.25rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '1.25rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.375rem', color: 'var(--text-main)' }}>
                     SMTP Host
@@ -271,6 +280,29 @@ export function SuperAdminSettings() {
           </Card>
         )}
       </form>
+
+      {/* Account Session & Logout */}
+      <Card style={{ border: '1px solid #fee2e2', backgroundColor: '#fff5f5' }}>
+        <CardBody style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1.25rem 1.5rem' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <LogOut size={18} color="#dc2626" /> Platform Root Session
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#b91c1c', marginTop: '0.25rem' }}>
+              Logged in as <strong>{currentUser?.name || 'Super Administrator'}</strong> ({currentUser?.role || 'Root Operator'})
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            onClick={handleLogout}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', backgroundColor: '#dc2626', borderColor: '#dc2626', fontWeight: 700 }}
+          >
+            <LogOut size={15} /> Log Out from Cloud Console
+          </Button>
+        </CardBody>
+      </Card>
     </div>
   );
 }

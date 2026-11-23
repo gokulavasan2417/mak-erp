@@ -1,5 +1,6 @@
 // MAK Tours & Travels ERP - Driver Portal Settings
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Settings,
   Bell,
@@ -8,16 +9,25 @@ import {
   Save,
   ShieldCheck,
   Moon,
-  Smartphone
+  Smartphone,
+  LogOut
 } from 'lucide-react';
 import { Breadcrumbs } from '../../components/common/Breadcrumbs';
 import { Card, CardHeader, CardBody } from '../../components/ui/Card';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../hooks/useAuth';
 
 export function DriverSettings() {
   const toast = useToast();
+  const { currentUser, logout } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const [notifications, setNotifications] = useState({
     smsTripAssignments: true,
@@ -156,6 +166,29 @@ export function DriverSettings() {
               Update Password
             </Button>
           </form>
+        </CardBody>
+      </Card>
+
+      {/* Account Session & Logout */}
+      <Card style={{ border: '1px solid #fee2e2', backgroundColor: '#fff5f5' }}>
+        <CardBody style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1.25rem 1.5rem' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <LogOut size={18} color="#dc2626" /> Driver Account &amp; Session
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#b91c1c', marginTop: '0.25rem' }}>
+              Logged in as <strong>{currentUser?.name || 'Driver'}</strong> ({currentUser?.badgeNumber || currentUser?.id || 'DRV'})
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            onClick={handleLogout}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', backgroundColor: '#dc2626', borderColor: '#dc2626', fontWeight: 700 }}
+          >
+            <LogOut size={15} /> Log Out from Driver Portal
+          </Button>
         </CardBody>
       </Card>
     </div>

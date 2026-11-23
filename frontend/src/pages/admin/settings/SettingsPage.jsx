@@ -18,14 +18,24 @@ import {
   Percent,
   TrendingUp,
   Wallet,
-  ArrowRight
+  ArrowRight,
+  LogOut
 } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardHeader, CardBody } from '../../../components/ui/Card';
 import { Button } from '../../../components/ui/Button';
 import { useAdminData } from '../../../context/AdminDataContext';
+import { useAuth } from '../../../hooks/useAuth';
 
 export function SettingsPage() {
   const { settings, updateSettings } = useAdminData();
+  const { currentUser, logout, currentCompany } = useAuth();
+  const navigate = useNavigate();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   const [activeTab, setActiveTab] = useState('company');
 
@@ -221,7 +231,7 @@ export function SettingsPage() {
               }
             />
             <CardBody style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 280px), 1fr))', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                     Legal Registered Entity Name *
@@ -248,7 +258,7 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                     GSTIN (Goods & Services Tax)
@@ -284,7 +294,7 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                     Corporate Email
@@ -320,7 +330,7 @@ export function SettingsPage() {
                 </div>
               </div>
 
-              <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr 1fr', gap: '1rem' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '1rem' }}>
                 <div>
                   <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                     Headquarters Street Address
@@ -419,7 +429,7 @@ export function SettingsPage() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', backgroundColor: '#ffffff', padding: '0.85rem', borderRadius: '10px', border: '1px solid #fde68a' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 150px), 1fr))', gap: '0.75rem', backgroundColor: '#ffffff', padding: '0.85rem', borderRadius: '10px', border: '1px solid #fde68a' }}>
                     <div>
                       <span style={{ fontSize: '0.7rem', color: '#64748b', fontWeight: 600, display: 'block' }}>VENDOR RECEIVES</span>
                       <strong style={{ fontSize: '1rem', color: '#b45309' }}>{vendorPayoutPercent}%</strong>
@@ -463,7 +473,7 @@ export function SettingsPage() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '1rem' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 700, color: '#166534', marginBottom: '0.35rem' }}>
                         Round Trip Driver Pay (₹) *
@@ -501,7 +511,7 @@ export function SettingsPage() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 220px), 1fr))', gap: '1rem' }}>
                     <div>
                       <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                         Daily Day Batta Allowance (₹/day)
@@ -540,11 +550,11 @@ export function SettingsPage() {
       {/* Tab 2: Invoicing & Banking */}
       {activeTab === 'invoice' && (
         <form onSubmit={handleSaveInvoice}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '1.25rem' }}>
             <Card>
               <CardHeader title="Tax Invoice Rules" subtitle="Sequencing & SAC tax categorization" />
               <CardBody style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                       Invoice Series Prefix
@@ -569,7 +579,7 @@ export function SettingsPage() {
                   </div>
                 </div>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '0.75rem' }}>
                   <div>
                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: 600, color: '#334155', marginBottom: '0.35rem' }}>
                       SAC HSN Code
@@ -869,6 +879,29 @@ export function SettingsPage() {
           </Card>
         </form>
       )}
+
+      {/* Account Session & Logout */}
+      <Card style={{ border: '1px solid #fee2e2', backgroundColor: '#fff5f5', marginTop: '1rem' }}>
+        <CardBody style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', padding: '1.25rem 1.5rem' }}>
+          <div>
+            <div style={{ fontWeight: 800, fontSize: '0.95rem', color: '#991b1b', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <LogOut size={18} color="#dc2626" /> Account &amp; Session Management
+            </div>
+            <div style={{ fontSize: '0.8rem', color: '#b91c1c', marginTop: '0.25rem' }}>
+              Logged in as <strong>{currentUser?.name || 'Administrator'}</strong> ({currentUser?.role || 'Admin'}) &bull; Company: {currentCompany?.name || 'MAK Tours & Travels'}
+            </div>
+          </div>
+          <Button
+            type="button"
+            variant="danger"
+            size="sm"
+            onClick={handleLogout}
+            style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', backgroundColor: '#dc2626', borderColor: '#dc2626', fontWeight: 700 }}
+          >
+            <LogOut size={15} /> Log Out from ERP
+          </Button>
+        </CardBody>
+      </Card>
     </div>
   );
 }
