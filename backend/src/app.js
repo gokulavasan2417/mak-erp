@@ -35,34 +35,40 @@ const allowedOrigins = [
     : [])
 ].filter(Boolean);
 
-app.use(
-  cors({
-    origin: (origin, callback) => {
-      // Allow requests with no origin (like mobile apps, curl, or server-to-server)
-      if (!origin) {
-        return callback(null, true);
-      }
-      if (allowedOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-      return callback(new Error(`Origin '${origin}' not allowed by CORS policy`), false);
-    },
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: [
-      'Content-Type',
-      'Authorization',
-      'X-Requested-With',
-      'Accept',
-      'X-Vendor-Id',
-      'x-vendor-id',
-      'X-Admin-Role',
-      'x-admin-role',
-      'X-Tenant-Id',
-      'x-tenant-id'
-    ]
-  })
-);
+const corsOptions = {
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like mobile apps, curl, or server-to-server)
+    if (!origin) {
+      return callback(null, true);
+    }
+    const cleanOrigin = origin.replace(/\/+$/, '').toLowerCase();
+    const isVercel = cleanOrigin.endsWith('.vercel.app') || cleanOrigin.includes('.vercel.app');
+    const isLocal = cleanOrigin.includes('localhost') || cleanOrigin.includes('127.0.0.1');
+    const isInList = allowedOrigins.some((o) => o.replace(/\/+$/, '').toLowerCase() === cleanOrigin);
+
+    if (isVercel || isLocal || isInList) {
+      return callback(null, true);
+    }
+    return callback(new Error(`Origin '${origin}' not allowed by CORS policy`), false);
+  },
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'X-Requested-With',
+    'Accept',
+    'X-Vendor-Id',
+    'x-vendor-id',
+    'X-Admin-Role',
+    'x-admin-role',
+    'X-Tenant-Id',
+    'x-tenant-id'
+  ]
+};
+
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
 // Body limit: Default 1MB for all general JSON and urlencoded traffic
 app.use(express.json({ limit: '1mb' }));
