@@ -37,28 +37,29 @@ export function CardHeader({
   return (
     <div
       style={{
-        padding: '1.25rem 1.5rem',
+        padding: '1rem clamp(0.875rem, 2.5vw, 1.5rem)',
         borderBottom: '1px solid var(--border-light)',
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        gap: '1rem',
+        flexWrap: 'wrap',
+        gap: '0.75rem',
         ...style
       }}
     >
-      <div>
-        {title && <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-main)' }}>{title}</h3>}
-        {subtitle && <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{subtitle}</p>}
+      <div style={{ minWidth: 0, flex: '1 1 200px' }}>
+        {title && <h3 style={{ fontSize: '1.125rem', fontWeight: 600, color: 'var(--text-main)', margin: 0 }}>{title}</h3>}
+        {subtitle && <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted)', marginTop: '0.25rem', margin: 0, overflowWrap: 'break-word', wordBreak: 'break-word' }}>{subtitle}</p>}
         {children}
       </div>
-      {action && <div>{action}</div>}
+      {action && <div style={{ flexShrink: 0, maxWidth: '100%' }}>{action}</div>}
     </div>
   );
 }
 
 export function CardBody({ children, style = {}, className = '' }) {
   return (
-    <div style={{ padding: '1.5rem', ...style }} className={`card-body ${className}`}>
+    <div style={{ padding: 'clamp(0.875rem, 2.5vw, 1.5rem)', minWidth: 0, ...style }} className={`card-body ${className}`}>
       {children}
     </div>
   );

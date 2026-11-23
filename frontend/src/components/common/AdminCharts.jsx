@@ -41,22 +41,22 @@ export function MonthlyRevenueChart({
         title="Monthly Revenue vs Expenses"
         subtitle="Gross revenue, operating expenses, and net EBITDA (in ₹ Thousands)"
         action={
-          <div style={{ display: 'flex', gap: '1rem', fontSize: '0.75rem', fontWeight: 600 }}>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#2C3480' }}>
+          <div style={{ display: 'flex', gap: '0.75rem', fontSize: '0.75rem', fontWeight: 600, flexWrap: 'wrap' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#2C3480', whiteSpace: 'nowrap' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#2C3480' }} /> Revenue
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#EF4444' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#EF4444', whiteSpace: 'nowrap' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#EF4444' }} /> Expenses
             </span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#10B981' }}>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', color: '#10B981', whiteSpace: 'nowrap' }}>
               <span style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10B981' }} /> Profit
             </span>
           </div>
         }
       />
-      <CardBody style={{ padding: '0.75rem 1.25rem 1.25rem' }}>
-        <div style={{ width: '100%', overflowX: 'auto' }}>
-          <svg viewBox={`0 0 ${svgWidth} ${height}`} style={{ width: '100%', height: 'auto', maxHeight: `${height}px` }}>
+      <CardBody style={{ padding: '0.75rem 1rem 1.25rem' }}>
+        <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <svg viewBox={`0 0 ${svgWidth} ${height}`} style={{ width: '100%', minWidth: '460px', height: 'auto', maxHeight: `${height}px` }}>
             {/* Horizontal Grid lines */}
             {gridVals.map((val) => {
               const y = height - padding - (val / maxVal) * chartHeight;
@@ -148,16 +148,26 @@ export function MonthlyRevenueChart({
                   />
 
                   {/* Month Label */}
-                  <text
-                    x={groupX + groupWidth / 2}
-                    y={height - padding + 16}
-                    fontSize="10"
-                    fill="var(--text-muted, #64748b)"
-                    textAnchor="middle"
-                    fontWeight={isHovered ? 700 : 500}
-                  >
-                    {item.month}
-                  </text>
+                  {(() => {
+                    let m = item.month || item.label || '';
+                    if (typeof m === 'string' && /^\d{4}-\d{2}/.test(m)) {
+                      const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+                      const mIdx = parseInt(m.split('-')[1], 10) - 1;
+                      if (mIdx >= 0 && mIdx < 12) m = monthNamesShort[mIdx];
+                    }
+                    return (
+                      <text
+                        x={groupX + groupWidth / 2}
+                        y={height - padding + 16}
+                        fontSize="10"
+                        fill="var(--text-muted, #64748b)"
+                        textAnchor="middle"
+                        fontWeight={isHovered ? 700 : 500}
+                      >
+                        {m}
+                      </text>
+                    );
+                  })()}
                 </g>
               );
             })}
@@ -223,9 +233,9 @@ export function BookingTrendsChart({
           </div>
         }
       />
-      <CardBody style={{ padding: '0.75rem 1.25rem 1.25rem' }}>
-        <div style={{ width: '100%', overflowX: 'auto' }}>
-          <svg viewBox={`0 0 ${svgWidth} ${height}`} style={{ width: '100%', height: 'auto', maxHeight: `${height}px` }}>
+      <CardBody style={{ padding: '0.75rem 1rem 1.25rem' }}>
+        <div style={{ width: '100%', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+          <svg viewBox={`0 0 ${svgWidth} ${height}`} style={{ width: '100%', minWidth: '460px', height: 'auto', maxHeight: `${height}px` }}>
             <defs>
               <linearGradient id="bookingTrendGradient" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#2C3480" stopOpacity="0.35" />
@@ -297,20 +307,20 @@ export function BookingStatusDistribution({
 
   let cumulative = 0;
 
-  const size = 180;
+  const size = 160;
   const center = size / 2;
-  const radius = 68;
-  const strokeWidth = 24;
+  const radius = 60;
+  const strokeWidth = 22;
 
   const circumference = 2 * Math.PI * radius;
 
   return (
     <Card>
       <CardHeader title="Booking Status Distribution" subtitle="Active vs completed vs cancelled manifests" />
-      <CardBody style={{ padding: '1rem 1.25rem' }}>
+      <CardBody style={{ padding: '1rem clamp(0.75rem, 2.5vw, 1.25rem)' }}>
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-around', flexWrap: 'wrap', gap: '1rem' }}>
           {/* Donut SVG */}
-          <div style={{ position: 'relative', width: size, height: size }}>
+          <div style={{ position: 'relative', width: size, height: size, flexShrink: 0 }}>
             <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
               {data.map((item, idx) => {
                 const ratio = item.count / total;
@@ -352,7 +362,7 @@ export function BookingStatusDistribution({
           </div>
 
           {/* Legend Table */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', minWidth: '180px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', minWidth: '150px', flex: '1 1 150px', maxWidth: '100%' }}>
             {data.map((item, idx) => {
               const pct = ((item.count / total) * 100).toFixed(1);
               return (

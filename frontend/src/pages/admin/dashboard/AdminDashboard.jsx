@@ -181,12 +181,20 @@ export function AdminDashboard() {
   // 1. Monthly Revenue & Expenses Chart Data (in ₹ Thousands)
   const monthlyRevenueChartData = useMemo(() => {
     if (serverMonthlyData && serverMonthlyData.length > 0) {
-      return serverMonthlyData.map((row) => ({
-        month: row.month || row.monthName || row.period || 'M',
-        revenue: Math.round(Number(row.revenue || row.totalRevenue || row.bookingRevenue || 0) / 1000),
-        expenses: Math.round(Number(row.expenses || row.totalExpenses || row.operatingExpense || 0) / 1000),
-        profit: Math.round(Number(row.profit || row.netMargin || row.netProfit || 0) / 1000)
-      }));
+      const monthNamesShort = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      return serverMonthlyData.map((row) => {
+        let mLabel = row.month || row.monthName || row.period || 'M';
+        if (typeof mLabel === 'string' && /^\d{4}-\d{2}/.test(mLabel)) {
+          const mIdx = parseInt(mLabel.split('-')[1], 10) - 1;
+          if (mIdx >= 0 && mIdx < 12) mLabel = monthNamesShort[mIdx];
+        }
+        return {
+          month: mLabel,
+          revenue: Math.round(Number(row.revenue || row.totalRevenue || row.bookingRevenue || 0) / 1000),
+          expenses: Math.round(Number(row.expenses || row.totalExpenses || row.operatingExpense || 0) / 1000),
+          profit: Math.round(Number(row.profit || row.netMargin || row.netProfit || 0) / 1000)
+        };
+      });
     }
 
     const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -475,7 +483,7 @@ export function AdminDashboard() {
   }, [bookings, tourPackages]);
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', width: '100%', maxWidth: '100%', boxSizing: 'border-box' }}>
       {/* Top Banner & Quick Actions */}
       <div
         style={{
@@ -485,13 +493,13 @@ export function AdminDashboard() {
           flexWrap: 'wrap',
           gap: '1rem',
           backgroundColor: 'var(--bg-surface, #ffffff)',
-          padding: '1.25rem 1.5rem',
+          padding: '1rem clamp(0.875rem, 2.5vw, 1.5rem)',
           borderRadius: '16px',
           border: '1px solid var(--border-light, #e2e8f0)',
           boxShadow: 'var(--shadow-sm)'
         }}
       >
-        <div>
+        <div style={{ minWidth: 0, flex: '1 1 280px' }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.25rem' }}>
             <span
               style={{
@@ -506,15 +514,15 @@ export function AdminDashboard() {
               Operations Command Live
             </span>
           </div>
-          <h1 style={{ fontSize: '1.5rem', fontWeight: 800, color: 'var(--text-main, #090d16)', margin: 0 }}>
+          <h1 style={{ fontSize: 'clamp(1.2rem, 3vw, 1.5rem)', fontWeight: 800, color: 'var(--text-main, #090d16)', margin: 0 }}>
             MAK Tours & Travels Operations Hub
           </h1>
-          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted, #64748b)', margin: '0.25rem 0 0' }}>
+          <p style={{ fontSize: '0.8125rem', color: 'var(--text-muted, #64748b)', margin: '0.25rem 0 0', overflowWrap: 'break-word' }}>
             Live manifest allocations, driver rosters, vehicle telematics, and corporate bookings.
           </p>
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
           <Button
             variant="outline"
             leftIcon={<Compass size={16} />}
@@ -536,8 +544,9 @@ export function AdminDashboard() {
       <div
         style={{
           display: 'grid',
-          gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))',
-          gap: '1rem'
+          gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))',
+          gap: '1rem',
+          width: '100%'
         }}
       >
         {kpiCards.map((card, idx) => {
@@ -625,7 +634,7 @@ export function AdminDashboard() {
           </Button>
         </div>
 
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '0.875rem' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 200px), 1fr))', gap: '0.875rem', width: '100%' }}>
           <div
             onClick={() => navigate('/admin/finance')}
             title="Open Finance Dashboard & Revenue"
@@ -806,46 +815,46 @@ export function AdminDashboard() {
       </div>
 
       {/* SECTION 13: 4 DEDICATED EXPENSE CHARTS GRID */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: '1.25rem' }}>
-        <div style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/expenses')} title="Click to view Expenses">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '1.25rem', width: '100%' }}>
+        <div style={{ cursor: 'pointer', minWidth: 0, width: '100%' }} onClick={() => navigate('/admin/expenses')} title="Click to view Expenses">
           <MonthlyTripExpensesChart expenses={expenses} />
         </div>
-        <div style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/expenses')} title="Click to view Expense Categories">
+        <div style={{ cursor: 'pointer', minWidth: 0, width: '100%' }} onClick={() => navigate('/admin/expenses')} title="Click to view Expense Categories">
           <ExpenseCategoryBreakdownChart expenses={expenses} />
         </div>
-        <div style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/expenses')} title="Click to view Expense Approvals">
+        <div style={{ cursor: 'pointer', minWidth: 0, width: '100%' }} onClick={() => navigate('/admin/expenses')} title="Click to view Expense Approvals">
           <ExpenseApprovalStatusChart expenses={expenses} />
         </div>
-        <div style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/finance')} title="Click to view Trip Profitability">
+        <div style={{ cursor: 'pointer', minWidth: 0, width: '100%' }} onClick={() => navigate('/admin/finance')} title="Click to view Trip Profitability">
           <BookingProfitabilityChart bookings={bookings} expenses={expenses} />
         </div>
       </div>
 
       {/* Main Charts Row: Revenue & Booking Trends */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: '1.25rem' }}>
-        <div style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/finance')} title="Click to view Finance Dashboard">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '1.25rem', width: '100%' }}>
+        <div style={{ cursor: 'pointer', minWidth: 0, width: '100%' }} onClick={() => navigate('/admin/finance')} title="Click to view Finance Dashboard">
           <MonthlyRevenueChart data={monthlyRevenueChartData} />
         </div>
-        <div style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/bookings')} title="Click to view Bookings">
+        <div style={{ cursor: 'pointer', minWidth: 0, width: '100%' }} onClick={() => navigate('/admin/bookings')} title="Click to view Bookings">
           <BookingTrendsChart labels={bookingTrendsChartData.labels} bookings={bookingTrendsChartData.bookings} />
         </div>
       </div>
 
       {/* Secondary Charts Row: Donut + Fleet Utilization + Tour Performance */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(320px, 1fr))', gap: '1.25rem' }}>
-        <div style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/bookings')} title="Click to view Booking Status Distribution">
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 300px), 1fr))', gap: '1.25rem', width: '100%' }}>
+        <div style={{ cursor: 'pointer', minWidth: 0, width: '100%' }} onClick={() => navigate('/admin/bookings')} title="Click to view Booking Status Distribution">
           <BookingStatusDistribution data={bookingStatusDistributionData} />
         </div>
-        <div style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/fleet')} title="Click to view Fleet Management">
+        <div style={{ cursor: 'pointer', minWidth: 0, width: '100%' }} onClick={() => navigate('/admin/fleet')} title="Click to view Fleet Management">
           <VehicleUtilizationChart data={vehicleUtilizationData} />
         </div>
-        <div style={{ cursor: 'pointer' }} onClick={() => navigate('/admin/tour-packages')} title="Click to view Tour Packages">
+        <div style={{ cursor: 'pointer', minWidth: 0, width: '100%' }} onClick={() => navigate('/admin/tour-packages')} title="Click to view Tour Packages">
           <TourPackagePerformanceChart data={tourPackagePerformanceData} />
         </div>
       </div>
 
       {/* Bottom Operational Tables Grid */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: '1.25rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '1.25rem', width: '100%' }}>
         {/* Recent Bookings Section - Modern Cards View */}
         <Card>
           <CardHeader
@@ -1007,7 +1016,7 @@ export function AdminDashboard() {
       </div>
 
       {/* Pending Operational Actions & Notifications Row */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(440px, 1fr))', gap: '1.25rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 380px), 1fr))', gap: '1.25rem', width: '100%' }}>
         {/* Pending Actions */}
         <Card>
           <CardHeader
@@ -1149,15 +1158,15 @@ export function AdminDashboard() {
                       cursor: 'pointer'
                     }}
                   >
-                    <div>
-                      <div style={{ fontSize: '0.8125rem', fontWeight: n.unread ? 700 : 600, color: 'var(--text-main, #090d16)' }}>
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                      <div style={{ fontSize: '0.8125rem', fontWeight: n.unread ? 700 : 600, color: 'var(--text-main, #090d16)', wordBreak: 'break-word' }}>
                         {n.title}
                       </div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '0.125rem' }}>
+                      <div style={{ fontSize: '0.75rem', color: 'var(--text-muted, #64748b)', marginTop: '0.125rem', wordBreak: 'break-word' }}>
                         {n.message}
                       </div>
                     </div>
-                    <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap' }}>
+                    <span style={{ fontSize: '0.6875rem', color: 'var(--text-muted, #64748b)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                       {n.time}
                     </span>
                   </div>

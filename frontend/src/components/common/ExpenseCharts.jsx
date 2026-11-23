@@ -205,10 +205,10 @@ export function ExpenseApprovalStatusChart({ expenses = [] }) {
         title="Expense Approval Status"
         subtitle="Operational workflow queue status for filed receipts"
       />
-      <CardBody style={{ padding: '1rem 1.25rem' }}>
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
+      <CardBody style={{ padding: '1rem clamp(0.75rem, 2.5vw, 1.25rem)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
           {/* Donut representation */}
-          <div style={{ position: 'relative', width: '130px', height: '130px' }}>
+          <div style={{ position: 'relative', width: '130px', height: '130px', flexShrink: 0 }}>
             <svg viewBox="0 0 36 36" style={{ width: '100%', height: '100%', transform: 'rotate(-90deg)' }}>
               {/* Background */}
               <circle cx="18" cy="18" r="15.915" fill="none" stroke="#f1f5f9" strokeWidth="4" />
@@ -258,7 +258,7 @@ export function ExpenseApprovalStatusChart({ expenses = [] }) {
           </div>
 
           {/* Legend */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.8rem' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', fontSize: '0.8rem', minWidth: '130px', flex: '1 1 130px', maxWidth: '100%' }}>
             {statuses.map((st) => (
               <div key={st.label} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <span style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: st.color }} />
@@ -306,15 +306,15 @@ export function BookingProfitabilityChart({ bookings = [], expenses = [] }) {
         title="Booking Profitability"
         subtitle="Gross revenue, approved trip expenses, allocated overheads, and net profit"
       />
-      <CardBody style={{ padding: '1rem 1.25rem' }}>
+      <CardBody style={{ padding: '1rem clamp(0.75rem, 2.5vw, 1.25rem)' }}>
         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
           {items.map((item) => {
             const pct = Math.min(100, Math.round((item.amount / maxVal) * 100));
             return (
               <div key={item.label}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.8125rem', marginBottom: '0.25rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', fontSize: '0.8125rem', marginBottom: '0.25rem' }}>
                   <span style={{ fontWeight: 600, color: '#334155' }}>{item.label}</span>
-                  <span style={{ fontWeight: 800, color: item.color }}>₹{item.amount.toLocaleString('en-IN')}</span>
+                  <span style={{ fontWeight: 800, color: item.color, whiteSpace: 'nowrap' }}>₹{item.amount.toLocaleString('en-IN')}</span>
                 </div>
                 <div style={{ width: '100%', height: '10px', backgroundColor: '#f1f5f9', borderRadius: '5px', overflow: 'hidden' }}>
                   <div
