@@ -1,0 +1,31 @@
+{
+  "name": "mak-erp",
+  "version": "1.0.0",
+  "description": "Enterprise Resource Planning system for MAK Tours and Travels",
+  "private": true,
+  "scripts": {
+    "dev": "node dev.js",
+    "frontend": "npm --prefix frontend run dev",
+    "backend": "npm --prefix backend run dev",
+    "start": "node dev.js",
+    "build:frontend": "npm --prefix frontend run build",
+    "install:all": "npm --prefix backend install && npm --prefix frontend install"
+  },
+  "keywords": [
+    "mak-erp",
+    "tours-and-travels",
+    "erp",
+    "react",
+    "express",
+    "nodejs"
+  ],
+  "author": "MAK Tours and Travels",
+  "license": "ISC",
+  "dependencies": {
+    "@tailwindcss/vite": "^4.3.5",
+    "tailwindcss": "^4.3.5"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.7.0"
+  }
+}

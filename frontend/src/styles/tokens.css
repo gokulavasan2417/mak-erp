@@ -1,0 +1,145 @@
+/* MAK Tours & Travels ERP - Design Tokens
+ * 60-30-10 Color System:
+ * - 60% Dominant: Clean Pure White & Crisp Light Surfaces
+ * - 30% Structural: Deep Jet Black / Charcoal Enterprise Frame & High-Contrast Typography
+ * - 10% Accent: Cobalt Blue Button Color (#2C3480)
+ */
+:root {
+  /* 10% Accent Palette - Cobalt Blue Button Color (#2C3480) */
+  --btn-accent-50: #eef0fd;
+  --btn-accent-100: #e0e4fc;
+  --btn-accent-200: #c7cefa;
+  --btn-accent-300: #a4aff6;
+  --btn-accent-400: #7a86f0;
+  --btn-accent-500: #555fe8;
+  --btn-accent-600: #3c44bc;
+  --btn-accent-700: #2c3480; /* Cobalt Blue Primary: rgb(44, 52, 128) */
+  --btn-accent-800: #202765; /* Hover State */
+  --btn-accent-900: #171c4a; /* Active / Pressed State */
+  --btn-accent-950: #0e1133;
+
+  /* Primary Theme Tokens (10% Accent) */
+  --color-primary: #2C3480;
+  --color-primary-hover: #20265F;
+  --color-primary-active: #171C4A;
+  --color-primary-light: #EEF0FD;
+  --color-primary-border: #C7CEFA;
+  --color-primary-ring: rgba(44, 52, 128, 0.25);
+  --color-navy-dark: #20265F;
+  --color-blue-secondary: #4F5BD5;
+
+  /* 60% Dominant - Pure White & Crisp Light Surfaces */
+  --bg-app: #FAFAFC;
+  --bg-surface: #FFFFFF;
+  --bg-surface-hover: #F1F5F9;
+  --bg-surface-active: #E2E8F0;
+  --border-light: #E2E8F0;
+  --border-medium: #CBD5E1;
+
+  /* 30% Structural - Deep Jet Black / Obsidian Enterprise Frame & Typography */
+  --bg-sidebar: #090D16;
+  --bg-sidebar-hover: #141B2D;
+  --bg-sidebar-active: #1E2840;
+
+  --text-main: #1E293B;
+  --text-primary: #1E293B;
+  --text-secondary: #64748B;
+  --text-muted: #64748B;
+  --text-inverse: #FFFFFF;
+  --text-sidebar: #CBD5E1;
+  --text-sidebar-muted: #94A3B8;
+  --border-dark: #1E293B;
+
+  /* Status Colors */
+  --status-success: #10B981;
+  --status-success-bg: #ECFDF5;
+  --status-success-text: #065F46;
+
+  --status-warning: #F59E0B;
+  --status-warning-bg: #FFFBEB;
+  --status-warning-text: #92400E;
+  --status-warning-dark: #D97706;
+
+  --status-danger: #EF4444;
+  --status-danger-bg: #FEF2F2;
+  --status-danger-text: #991B1B;
+
+  --status-info: #0284C7;
+  --status-info-bg: #F0F9FF;
+  --status-info-text: #075985;
+
+  /* Elevation Shadows */
+  --shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.08), 0 1px 2px -1px rgba(0, 0, 0, 0.05);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.08), 0 2px 4px -2px rgba(0, 0, 0, 0.05);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.08), 0 4px 6px -4px rgba(0, 0, 0, 0.04);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.08), 0 8px 10px -6px rgba(0, 0, 0, 0.04);
+  --shadow-accent: 0 4px 14px rgba(44, 52, 128, 0.28);
+
+  /* Border Radii - Generous modern rounded corners */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+  --radius-2xl: 24px;
+  --radius-3xl: 32px;
+  --radius-full: 9999px;
+
+  /* Transitions */
+  --transition-fast: 150ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-normal: 200ms cubic-bezier(0.4, 0, 0.2, 1);
+  --transition-slow: 300ms cubic-bezier(0.4, 0, 0.2, 1);
+
+  /* Sizing and Layout */
+  --sidebar-width: 260px;
+  --sidebar-width-collapsed: 72px;
+  --topbar-height: 64px;
+}
+
+/* Dark Mode Tokens */
+[data-theme="dark"] {
+  --bg-app: #070a10;
+  --bg-surface: #0f1422;
+  --bg-surface-hover: #172033;
+  --bg-surface-active: #202d45;
+  --bg-sidebar: #05080e;
+  --bg-sidebar-hover: #0e1626;
+  --bg-sidebar-active: #152238;
+
+  --text-main: #f8fafc;
+  --text-secondary: #cbd5e1;
+  --text-muted: #94a3b8;
+  --text-inverse: #090d16;
+  --text-sidebar: #e2e8f0;
+  --text-sidebar-muted: #64748b;
+
+  --border-light: #1e293b;
+  --border-medium: #334155;
+  --border-dark: #475569;
+
+  --color-primary: #3c44bc;
+  --color-primary-hover: #4e57d4;
+  --color-primary-active: #2c3480;
+  --color-primary-light: rgba(44, 52, 128, 0.25);
+  --color-primary-border: rgba(122, 134, 240, 0.4);
+  --color-primary-ring: rgba(85, 95, 232, 0.35);
+
+  --status-success-bg: rgba(16, 185, 129, 0.15);
+  --status-success-text: #34d399;
+
+  --status-warning-bg: rgba(245, 158, 11, 0.15);
+  --status-warning-text: #fbbf24;
+
+  --status-danger-bg: rgba(239, 68, 68, 0.15);
+  --status-danger-text: #f87171;
+
+  --status-info-bg: rgba(2, 132, 199, 0.15);
+  --status-info-text: #38bdf8;
+
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.6);
+  --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.7);
+  --shadow-accent: 0 4px 14px rgba(60, 68, 188, 0.4);
+}

@@ -1,0 +1,44 @@
+import { Router } from 'express';
+import authRoutes from './authRoutes.js';
+import superAdminRoutes from './superAdminRoutes.js';
+import bookingRoutes from './bookingRoutes.js';
+import tripRoutes from './tripRoutes.js';
+import driverRoutes from './driverRoutes.js';
+import vehicleRoutes from './vehicleRoutes.js';
+import vendorRoutes from './vendorRoutes.js';
+import financeRoutes from './financeRoutes.js';
+import notificationRoutes from './notificationRoutes.js';
+import tourPackageRoutes from './tourPackageRoutes.js';
+import employeeRoutes from './employeeRoutes.js';
+import attendanceRoutes from './attendanceRoutes.js';
+import payrollRoutes from './payrollRoutes.js';
+import customerRoutes from './customerRoutes.js';
+import accountingRoutes from './accountingRoutes.js';
+import payableRoutes from './payableRoutes.js';
+import driverSettlementRoutes from './driverSettlementRoutes.js';
+import cashBankRoutes from './cashBankRoutes.js';
+import reportRoutes from './reportRoutes.js';
+
+const router = Router();
+
+router.use('/auth', authRoutes);
+router.use('/super-admin', superAdminRoutes);
+router.use('/bookings', bookingRoutes);
+router.use('/trips', tripRoutes);
+router.use('/drivers', driverRoutes);
+router.use('/vehicles', vehicleRoutes);
+router.use('/vendors', vendorRoutes);
+router.use('/customers', customerRoutes);
+router.use('/employees', employeeRoutes);
+router.use('/attendance', attendanceRoutes);
+router.use('/payroll', payrollRoutes);
+router.use('/finance', financeRoutes);
+router.use('/accounting', accountingRoutes);
+router.use('/payable', payableRoutes);
+router.use('/driver-settlements', driverSettlementRoutes);
+router.use('/cash-bank', cashBankRoutes);
+router.use('/reports', reportRoutes);
+router.use('/notifications', notificationRoutes);
+router.use('/tour-packages', tourPackageRoutes);
+
+export default router;
