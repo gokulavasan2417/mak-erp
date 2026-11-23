@@ -31,7 +31,7 @@ import { useAdminData } from '../../../context/AdminDataContext';
 
 export function CustomerList() {
   const navigate = useNavigate();
-  const { customers } = useAdminData();
+  const { customers = [], bookings = [] } = useAdminData();
 
   const [viewMode, setViewMode] = useState('grid'); // 'grid' (default modern cards) or 'table'
   const [searchTerm, setSearchTerm] = useState('');
@@ -40,9 +40,51 @@ export function CustomerList() {
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 8;
 
+  const normalizeDigits = (val) => {
+    if (!val) return '';
+    const digits = String(val).replace(/\D/g, '');
+    if (digits.length === 12 && digits.startsWith('91')) return digits.slice(2);
+    if (digits.length === 11 && digits.startsWith('0')) return digits.slice(1);
+    return digits.length >= 10 ? digits.slice(-10) : digits;
+  };
+
+  // Dynamically enrich customers with live booking metrics & balance
+  const enrichedCustomers = useMemo(() => {
+    return (customers || []).map((c) => {
+      const cCleanPhone = normalizeDigits(c.phone);
+      const linkedBookings = (bookings || []).filter((b) => {
+        const bCleanPhone = normalizeDigits(b.customerPhone || b.mobileNumber || b.phone);
+        if (cCleanPhone && bCleanPhone && cCleanPhone === bCleanPhone) return true;
+        if (b.customerId && (b.customerId === c.id || b.customerId === c._id)) return true;
+        if (b.customerName && c.name && b.customerName.toLowerCase().includes(c.name.toLowerCase().substring(0, 5))) return true;
+        return false;
+      });
+
+      if (linkedBookings.length > 0) {
+        const liveSpent = linkedBookings.reduce((sum, bk) => sum + Number(bk.totalAmount || bk.fareAmount || bk.fare || bk.pricing || 0), 0);
+        const liveOutstanding = linkedBookings.reduce((sum, bk) => {
+          const tot = Number(bk.totalAmount || bk.fareAmount || bk.fare || bk.pricing || 0);
+          const paid = Number(bk.amountPaid ?? bk.advancePaid ?? 0);
+          const bal = bk.balanceAmount !== undefined && bk.balanceAmount !== null && !isNaN(Number(bk.balanceAmount))
+            ? Number(bk.balanceAmount)
+            : Math.max(0, tot - paid);
+          return sum + Math.max(0, bal);
+        }, 0);
+
+        return {
+          ...c,
+          totalBookings: linkedBookings.length,
+          totalSpent: liveSpent,
+          outstandingBalance: liveOutstanding
+        };
+      }
+      return c;
+    });
+  }, [customers, bookings]);
+
   // Filtered & searched customers
   const filteredCustomers = useMemo(() => {
-    return customers.filter((cust) => {
+    return enrichedCustomers.filter((cust) => {
       const s = (searchTerm || '').trim().toLowerCase();
       const matchSearch =
         s === '' ||
@@ -58,7 +100,7 @@ export function CustomerList() {
 
       return matchSearch && matchType && matchStatus;
     });
-  }, [customers, searchTerm, typeFilter, statusFilter]);
+  }, [enrichedCustomers, searchTerm, typeFilter, statusFilter]);
 
   // Pagination
   const paginatedCustomers = useMemo(() => {
@@ -67,10 +109,10 @@ export function CustomerList() {
   }, [filteredCustomers, currentPage, pageSize]);
 
   // Aggregate Metrics
-  const totalCorporate = customers.filter((c) => c.type === 'Corporate').length;
-  const totalIndividual = customers.filter((c) => c.type === 'Individual').length;
-  const totalLifetimeRevenue = customers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
-  const totalOutstanding = customers.reduce((sum, c) => sum + (c.outstandingBalance || 0), 0);
+  const totalCorporate = enrichedCustomers.filter((c) => c.type === 'Corporate').length;
+  const totalIndividual = enrichedCustomers.filter((c) => c.type === 'Individual').length;
+  const totalLifetimeRevenue = enrichedCustomers.reduce((sum, c) => sum + (c.totalSpent || 0), 0);
+  const totalOutstanding = enrichedCustomers.reduce((sum, c) => sum + (c.outstandingBalance || 0), 0);
 
   const handleExportCSV = () => {
     const headers = ['ID', 'Customer Name', 'Type', 'Contact Person', 'Phone', 'Email', 'City', 'Bookings', 'Total Spent (INR)', 'Outstanding (INR)', 'Status'];

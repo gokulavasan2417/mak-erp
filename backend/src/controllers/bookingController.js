@@ -308,8 +308,17 @@ export const bookingController = {
       const mobileNumber = (rawBody.mobileNumber || rawBody.customerPhone || rawBody.phone || '').trim();
       const bookingType = (rawBody.bookingType || rawBody.bookingCategory || rawBody.tripType || '').trim();
       const travelDate = (rawBody.travelDate || rawBody.journeyDate || rawBody.pickupDate || '').trim();
-      const pickupLocation = (rawBody.pickupLocation || rawBody.fromLocation || '').trim();
-      const toLocation = (rawBody.toLocation || rawBody.destination || rawBody.dropLocation || '').trim();
+      let pickupLocation = (rawBody.pickupLocation || rawBody.fromLocation || '').trim();
+      let toLocation = (rawBody.toLocation || rawBody.destination || rawBody.dropLocation || '').trim();
+
+      if ((!pickupLocation || !toLocation) && rawBody.route) {
+        const parts = String(rawBody.route).includes('–') ? String(rawBody.route).split('–') : String(rawBody.route).split('-');
+        if (!pickupLocation && parts[0]) pickupLocation = parts[0].trim();
+        if (!toLocation && parts[1]) toLocation = parts[1].trim();
+      }
+
+      const rawStatus = (rawBody.bookingStatus || rawBody.status || 'Confirmed').toLowerCase();
+      const isHistorical = rawStatus.includes('complete') || rawStatus.includes('cancel') || rawStatus.includes('progress');
 
       const validationErrors = {};
       if (!fullName) validationErrors.fullName = 'Customer name is required';
@@ -317,7 +326,7 @@ export const bookingController = {
       if (!bookingType) validationErrors.bookingType = 'Booking type is required';
       if (!travelDate) {
         validationErrors.travelDate = 'Travel date is required';
-      } else {
+      } else if (!isHistorical) {
         const now = new Date();
         const istDate = new Date(now.getTime() + (5.5 * 60 * 60 * 1000));
         const todayDateStr = istDate.toISOString().substring(0, 10);

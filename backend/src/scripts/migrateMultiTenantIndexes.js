@@ -4,6 +4,11 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import mongoose from 'mongoose';
 import dotenv from 'dotenv';
+import dns from 'dns';
+
+try {
+  dns.setServers(['8.8.8.8', '1.1.1.1']);
+} catch (e) {}
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -86,15 +91,27 @@ async function runMigration() {
       await payrollsCol.createIndex({ tenantId: 1, payrollCode: 1 }, { unique: true, sparse: true });
     }
 
+    // Helper to safely create index
+    const safeCreateIndex = async (col, spec, opts, label) => {
+      try {
+        console.log(`Creating index for ${label}...`);
+        await col.createIndex(spec, opts);
+      } catch (err) {
+        if (err.code === 85 || err.code === 86 || err.message?.includes('existing index')) {
+          console.log(`[NOTE] Index for ${label} already exists in database.`);
+        } else {
+          console.warn(`[WARN] Could not create index for ${label}:`, err.message);
+        }
+      }
+    };
+
     // 2. Check Bookings
     console.log(`\n--- Checking 'bookings' collection ---`);
     const bookingsCol = db.collection('bookings');
     await findCollisions(bookingsCol, ['tenantId', 'refId'], 'bookings {tenantId, refId}');
     if (isApply) {
-      console.log(`Creating compound unique index { tenantId: 1, refId: 1 } (sparse)...`);
-      await bookingsCol.createIndex({ tenantId: 1, refId: 1 }, { unique: true, sparse: true });
-      console.log(`Creating compound unique index { tenantId: 1, bookingNumber: 1 } (sparse)...`);
-      await bookingsCol.createIndex({ tenantId: 1, bookingNumber: 1 }, { unique: true, sparse: true });
+      await safeCreateIndex(bookingsCol, { tenantId: 1, refId: 1 }, { unique: true, sparse: true }, 'bookings { tenantId: 1, refId: 1 }');
+      await safeCreateIndex(bookingsCol, { tenantId: 1, bookingNumber: 1 }, { unique: true, sparse: true }, 'bookings { tenantId: 1, bookingNumber: 1 }');
     }
 
     // 3. Check Salary Payments
@@ -102,8 +119,7 @@ async function runMigration() {
     const salPayCol = db.collection('salary_payments');
     await findCollisions(salPayCol, ['tenantId', 'paymentRef'], 'salary_payments {tenantId, paymentRef}');
     if (isApply) {
-      console.log(`Creating compound unique index { tenantId: 1, paymentRef: 1 } (sparse)...`);
-      await salPayCol.createIndex({ tenantId: 1, paymentRef: 1 }, { unique: true, sparse: true });
+      await safeCreateIndex(salPayCol, { tenantId: 1, paymentRef: 1 }, { unique: true, sparse: true }, 'salary_payments { tenantId: 1, paymentRef: 1 }');
     }
 
     // 4. Check Invoices
@@ -111,8 +127,7 @@ async function runMigration() {
     const invoicesCol = db.collection('invoices');
     await findCollisions(invoicesCol, ['tenantId', 'invoiceNumber'], 'invoices {tenantId, invoiceNumber}');
     if (isApply) {
-      console.log(`Creating compound unique index { tenantId: 1, invoiceNumber: 1 }...`);
-      await invoicesCol.createIndex({ tenantId: 1, invoiceNumber: 1 }, { unique: true });
+      await safeCreateIndex(invoicesCol, { tenantId: 1, invoiceNumber: 1 }, { unique: true }, 'invoices { tenantId: 1, invoiceNumber: 1 }');
     }
 
     // 5. Check Expenses
@@ -120,8 +135,7 @@ async function runMigration() {
     const expensesCol = db.collection('expenses');
     await findCollisions(expensesCol, ['tenantId', 'id'], 'expenses {tenantId, id}');
     if (isApply) {
-      console.log(`Creating compound unique index { tenantId: 1, id: 1 } (sparse)...`);
-      await expensesCol.createIndex({ tenantId: 1, id: 1 }, { unique: true, sparse: true });
+      await safeCreateIndex(expensesCol, { tenantId: 1, id: 1 }, { unique: true, sparse: true }, 'expenses { tenantId: 1, id: 1 }');
     }
 
     // 6. Check Employees
@@ -129,10 +143,11 @@ async function runMigration() {
     const employeesCol = db.collection('employees');
     await findCollisions(employeesCol, ['tenantId', 'employeeCode'], 'employees {tenantId, employeeCode}');
     if (isApply) {
-      console.log(`Creating partial compound unique index { tenantId: 1, employeeCode: 1 }...`);
-      await employeesCol.createIndex(
+      await safeCreateIndex(
+        employeesCol,
         { tenantId: 1, employeeCode: 1 },
-        { unique: true, partialFilterExpression: { employeeCode: { $type: 'string', $gt: '' } } }
+        { unique: true, partialFilterExpression: { employeeCode: { $type: 'string', $gt: '' } } },
+        'employees { tenantId: 1, employeeCode: 1 }'
       );
     }
 
@@ -141,10 +156,11 @@ async function runMigration() {
     const vendorsCol = db.collection('vendors');
     await findCollisions(vendorsCol, ['tenantId', 'vendorId'], 'vendors {tenantId, vendorId}');
     if (isApply) {
-      console.log(`Creating partial compound unique index { tenantId: 1, vendorId: 1 }...`);
-      await vendorsCol.createIndex(
+      await safeCreateIndex(
+        vendorsCol,
         { tenantId: 1, vendorId: 1 },
-        { unique: true, partialFilterExpression: { vendorId: { $type: 'string', $gt: '' } } }
+        { unique: true, partialFilterExpression: { vendorId: { $type: 'string', $gt: '' } } },
+        'vendors { tenantId: 1, vendorId: 1 }'
       );
     }
 
@@ -152,8 +168,24 @@ async function runMigration() {
     console.log(`\n--- Checking 'counters' collection ---`);
     const countersCol = db.collection('counters');
     if (isApply) {
-      console.log(`Creating compound unique index { tenantId: 1, sequenceName: 1 }...`);
-      await countersCol.createIndex({ tenantId: 1, sequenceName: 1 }, { unique: true });
+      await safeCreateIndex(countersCol, { tenantId: 1, sequenceName: 1 }, { unique: true }, 'counters { tenantId: 1, sequenceName: 1 }');
+    }
+
+    // 9. Check Payments (Clean obsolete orderId_1 index)
+    console.log(`\n--- Checking 'payments' collection ---`);
+    const paymentsCol = db.collection('payments');
+    const existingPayIndexes = await paymentsCol.indexes().catch(() => []);
+    const obsoletePayIndexes = existingPayIndexes.filter(
+      (idx) => idx.name === 'orderId_1' || (idx.key && idx.key.orderId === 1 && !idx.key.tenantId && idx.unique)
+    );
+    if (obsoletePayIndexes.length > 0) {
+      console.log(`Found obsolete legacy unique indexes on payments:`, obsoletePayIndexes.map((i) => i.name));
+      if (isApply) {
+        for (const idx of obsoletePayIndexes) {
+          console.log(`Dropping obsolete index '${idx.name}'...`);
+          await paymentsCol.dropIndex(idx.name).catch((e) => console.warn(`Drop failed:`, e.message));
+        }
+      }
     }
 
     console.log(`\n=======================================================`);

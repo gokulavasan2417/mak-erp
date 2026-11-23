@@ -73,8 +73,8 @@ export function CustomerDetails() {
   const customerBookingsIds = new Set(customerBookings.map((b) => b.id || b._id));
   const customerBookingsRefs = new Set(customerBookings.map((b) => b.bookingNumber).filter(Boolean));
 
-  // Linked invoices
-  const customerInvoices = (invoices || []).filter(
+  // Linked invoices: cross-match explicit invoices and synthesize invoices for completed customer bookings that don't yet have one
+  const explicitInvoices = (invoices || []).filter(
     (inv) =>
       (inv.customerId && (inv.customerId === customer.id || inv.customerId === customer._id)) ||
       (inv.customerName && customer.name && inv.customerName.toLowerCase().includes(customer.name.toLowerCase().substring(0, 5))) ||
@@ -82,6 +82,38 @@ export function CustomerDetails() {
       customerBookingsRefs.has(inv.bookingRef) ||
       customerBookingsRefs.has(inv.bookingNumber)
   );
+
+  const coveredBookingRefs = new Set(explicitInvoices.map((i) => i.bookingRef || i.bookingNumber || i.bookingId).filter(Boolean));
+
+  // Synthesize invoice representations for completed trips without an explicit invoice entry
+  const derivedInvoices = customerBookings
+    .filter((bk) => (bk.bookingStatus === 'Completed' || bk.status === 'Completed') && !coveredBookingRefs.has(bk.bookingNumber) && !coveredBookingRefs.has(bk.id))
+    .map((bk) => {
+      const tot = Number(bk.totalAmount || bk.fareAmount || bk.fare || bk.pricing || 0);
+      const paid = Number(bk.amountPaid ?? bk.advancePaid ?? 0);
+      const bal = bk.balanceAmount !== undefined && bk.balanceAmount !== null && !isNaN(Number(bk.balanceAmount))
+        ? Number(bk.balanceAmount)
+        : Math.max(0, tot - paid);
+      return {
+        id: `INV-${bk.bookingNumber || bk.id}`,
+        invoiceNumber: bk.invoiceNumber || `INV-${bk.bookingNumber || bk.id}`,
+        bookingId: bk.id,
+        bookingRef: bk.bookingNumber || bk.id,
+        bookingNumber: bk.bookingNumber || bk.id,
+        customerName: bk.customerName || customer.name,
+        totalAmount: tot,
+        amount: tot,
+        advancePaid: paid,
+        amountPaid: paid,
+        balanceDue: bal,
+        balanceAmount: bal,
+        status: bal <= 0 ? 'Paid' : 'Partially Paid',
+        paymentStatus: bal <= 0 ? 'Paid' : 'Partially Paid',
+        date: bk.journeyDate || bk.startDate || bk.travelDate || bk.pickupDate || 'N/A'
+      };
+    });
+
+  const customerInvoices = [...explicitInvoices, ...derivedInvoices];
 
   const totalBookingsCount = customerBookings.length > 0 ? customerBookings.length : Number(customer.totalBookings || 0);
 
@@ -424,11 +456,19 @@ export function CustomerDetails() {
                     </tr>
                   ) : (
                     customerInvoices.map((inv) => {
-                      const invTotal = Number(inv.totalAmount || inv.amount || inv.subtotal || 0);
-                      const invPaid = Number(inv.amountPaid ?? inv.advancePaid ?? (inv.status === 'Paid' ? invTotal : 0));
-                      const invBal = inv.balanceDue !== undefined && !isNaN(Number(inv.balanceDue))
+                      const matchingBk = customerBookings.find(
+                        (b) => b.id === inv.bookingId || b.bookingNumber === inv.bookingRef || b.bookingNumber === inv.bookingNumber || b.refId === inv.bookingRef
+                      );
+                      const bkTotal = matchingBk ? Number(matchingBk.totalAmount || matchingBk.pricing || matchingBk.fare || matchingBk.totalFare || 0) : 0;
+                      const bkPaid = matchingBk ? Number(matchingBk.amountPaid !== undefined ? matchingBk.amountPaid : (matchingBk.advancePaid || 0)) : 0;
+                      const bkBal = matchingBk ? Number(matchingBk.balanceAmount !== undefined ? matchingBk.balanceAmount : (matchingBk.balanceDue !== undefined ? matchingBk.balanceDue : Math.max(0, bkTotal - bkPaid))) : 0;
+
+                      const rawInvTotal = Number(inv.totalAmount || inv.amount || inv.subtotal || 0);
+                      const invTotal = rawInvTotal > 0 ? rawInvTotal : bkTotal;
+                      const invPaid = Number(inv.amountPaid ?? inv.advancePaid ?? (inv.status === 'Paid' ? invTotal : bkPaid));
+                      const invBal = inv.balanceDue !== undefined && !isNaN(Number(inv.balanceDue)) && Number(inv.balanceDue) > 0
                         ? Number(inv.balanceDue)
-                        : Math.max(0, invTotal - invPaid);
+                        : (bkBal > 0 ? bkBal : Math.max(0, invTotal - invPaid));
                       const isInvPaid = invBal <= 0 || inv.status === 'Paid' || inv.paymentStatus === 'Paid';
 
                       return (

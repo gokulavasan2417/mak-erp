@@ -416,8 +416,10 @@ export const financeController = {
               email: b.email || ''
             },
             amount: fare,
+            totalAmount: fare,
             amountPaid: advance,
             balanceDue: bal,
+            balanceAmount: bal,
             status: computedStatus,
             date: b.travelDate || b.pickupDate || b.createdAt,
             invoiceDate: b.travelDate || b.pickupDate || new Date(b.createdAt || Date.now()).toISOString().split('T')[0],
@@ -1079,8 +1081,10 @@ export const financeController = {
         }
       }
 
-      // 3. Generate Sequences (Payment Ref & Official Receipt No)
+      // 3. Generate Sequences (Payment Ref, Guaranteed Unique OrderId & Official Receipt No)
       const paymentId = cleanData.paymentId || (await sequenceService.getNextPaymentRef(tenantId));
+      const rawOrderId = (cleanData.orderId || '').trim();
+      const resolvedOrderId = rawOrderId || `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
       const receiptNumber = await sequenceService.getNextReceiptNo(tenantId);
       const receiptDate = new Date().toISOString().split('T')[0];
 
@@ -1113,7 +1117,7 @@ export const financeController = {
       try {
         const sessionOpts = inTxn ? { session } : {};
 
-        // A. Create Payment Record
+        // A. Create Payment Record (orderId guaranteed non-empty & unique to prevent Atlas E11000 duplicate key error)
         let newPayment;
         if (inTxn) {
           const docs = await Payment.create(
@@ -1122,6 +1126,7 @@ export const financeController = {
                 ...cleanData,
                 tenantId,
                 paymentId,
+                orderId: resolvedOrderId,
                 idempotencyKey,
                 receiptNumber,
                 receiptDate,
@@ -1138,6 +1143,7 @@ export const financeController = {
             ...cleanData,
             tenantId,
             paymentId,
+            orderId: resolvedOrderId,
             idempotencyKey,
             receiptNumber,
             receiptDate,

@@ -399,7 +399,20 @@ export function TripProvider({ children }) {
             // Auto-sync any local-only bookings to MongoDB Atlas
             if (localMap.size > 0 && bookingService?.create) {
               localMap.forEach((unsynced) => {
-                bookingService.create(unsynced)
+                const routeParts = String(unsynced.route || '').includes('–') ? String(unsynced.route).split('–') : String(unsynced.route || '').split('-');
+                const payload = {
+                  ...unsynced,
+                  fullName: unsynced.fullName || unsynced.customerName || 'Valued Guest',
+                  customerName: unsynced.customerName || unsynced.fullName || 'Valued Guest',
+                  mobileNumber: unsynced.mobileNumber || unsynced.customerPhone || '9840111000',
+                  customerPhone: unsynced.customerPhone || unsynced.mobileNumber || '9840111000',
+                  bookingType: unsynced.bookingCategory || unsynced.bookingType || 'Round Trip',
+                  travelDate: unsynced.journeyDate || unsynced.travelDate || new Date().toISOString().substring(0, 10),
+                  pickupLocation: unsynced.pickupLocation || unsynced.fromLocation || routeParts[0]?.trim() || 'Chennai',
+                  toLocation: unsynced.destination || unsynced.toLocation || unsynced.dropLocation || routeParts[1]?.trim() || 'Pondicherry',
+                  bookingStatus: unsynced.bookingStatus || 'Confirmed'
+                };
+                bookingService.create(payload)
                   .then((syncRes) => {
                     if (syncRes?.data) {
                       setBookings((current) =>
@@ -418,7 +431,7 @@ export function TripProvider({ children }) {
                     }
                   })
                   .catch((err) => {
-                    console.warn('Auto-sync unsaved booking to Atlas deferred:', err);
+                    console.warn('Auto-sync unsaved booking to Atlas deferred:', err?.message || err);
                   });
               });
             }
@@ -455,12 +468,13 @@ export function TripProvider({ children }) {
                 const k = (lp.id || lp.paymentId || lp.receiptNumber || lp._id || '').toString();
                 if (k && !remoteMap.has(k)) {
                   merged.push(lp);
-                  // Auto-sync unpersisted local payment to Atlas
+                  // Auto-sync unpersisted local payment to Atlas with guaranteed unique orderId
                   financeService.recordPayment({
+                    orderId: lp.orderId || lp.id || `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
                     bookingRef: lp.bookingNumber || lp.bookingId,
                     amount: lp.amount,
                     paymentMethod: lp.paymentMethod || lp.method || 'Bank Transfer',
-                    paymentReference: lp.paymentReference || lp.transactionRef,
+                    paymentReference: lp.paymentReference || lp.transactionRef || lp.id,
                     allowOverpayment: true,
                     isAdvance: lp.paymentType === 'Advance',
                     status: 'captured'
@@ -737,11 +751,36 @@ export function TripProvider({ children }) {
   // 7. Shared Invoices
   const [invoices, setInvoices] = useState(() => {
     const stored = loadStoredJson(STORAGE_KEYS.INVOICES, null);
-    if (stored) return stored;
+    if (stored && Array.isArray(stored) && stored.length > 0) {
+      // Self-heal any stored invoices with 0 or missing totalAmount
+      return stored.map((inv) => {
+        const rawAmt = Number(inv.totalAmount || inv.amount || 0);
+        if (rawAmt <= 0) {
+          const matchingBk = initialBookings.find(
+            (b) => b.id === inv.bookingId || b.bookingNumber === inv.bookingNumber || b.bookingNumber === inv.bookingRef
+          );
+          const fare = matchingBk ? Number(matchingBk.totalAmount || matchingBk.pricing || matchingBk.fare || matchingBk.totalFare || 0) : 0;
+          const adv = matchingBk ? Number(matchingBk.amountPaid !== undefined ? matchingBk.amountPaid : (matchingBk.advancePaid || 0)) : 0;
+          const bal = Math.max(0, fare - adv);
+          return {
+            ...inv,
+            totalAmount: fare,
+            amount: fare,
+            advancePaid: adv,
+            amountPaid: adv,
+            balanceDue: bal,
+            balanceAmount: bal
+          };
+        }
+        return inv;
+      });
+    }
     const init = [...initialInvoices];
     initialBookings.forEach((b) => {
       if (b.bookingStatus === 'Completed') {
-        const balDue = Math.max(0, (b.totalAmount || 0) - (b.advancePaid || 0));
+        const fare = Number(b.totalAmount || b.pricing || b.fare || b.totalFare || 0);
+        const paid = Number(b.amountPaid !== undefined ? b.amountPaid : (b.advancePaid || 0));
+        const balDue = Math.max(0, fare - paid);
         init.push({
           id: `INV-${b.invoiceNumber || b.id}`,
           invoiceNumber: b.invoiceNumber || `INV-${b.id}`,
@@ -749,9 +788,12 @@ export function TripProvider({ children }) {
           bookingNumber: b.bookingNumber || b.id,
           customerName: b.customerName,
           customerPhone: b.customerPhone,
-          totalAmount: b.totalAmount || 0,
-          advancePaid: b.advancePaid || 0,
+          totalAmount: fare,
+          amount: fare,
+          advancePaid: paid,
+          amountPaid: paid,
           balanceDue: balDue,
+          balanceAmount: balDue,
           status: balDue === 0 ? 'Paid' : 'Partially Paid',
           issueDate: b.journeyDate || '2026-11-05',
           dueDate: b.returnDate || '2026-11-12'
@@ -2778,6 +2820,7 @@ export function TripProvider({ children }) {
     // 4. Persist Payment & Updated Booking to MongoDB Atlas
     if (financeService?.recordPayment) {
       financeService.recordPayment({
+        orderId: `ORD-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         bookingRef: booking.bookingNumber || booking.id,
         amount: payAmt,
         paymentMethod: method,

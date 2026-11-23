@@ -186,6 +186,21 @@ export async function bootstrapDatabaseIntegrity() {
       }
     }
 
+    // 6.5. In-place self-heal: Drop obsolete legacy single-field unique indexes that cause E11000 duplicate collisions
+    try {
+      const paymentsCol = db.collection('payments');
+      const existingPaymentIndexes = await paymentsCol.indexes().catch(() => []);
+      const obsoletePaymentIndexes = existingPaymentIndexes.filter(
+        (idx) => idx.name === 'orderId_1' || (idx.key && idx.key.orderId === 1 && !idx.key.tenantId && idx.unique)
+      );
+      for (const idx of obsoletePaymentIndexes) {
+        console.log(`  [✓] Dropping obsolete legacy index "${idx.name}" from payments collection...`);
+        await paymentsCol.dropIndex(idx.name).catch((e) => console.warn(`Could not drop ${idx.name}:`, e.message));
+      }
+    } catch (payIdxErr) {
+      console.warn('  [!] Payments obsolete index check notice:', payIdxErr.message);
+    }
+
     // 7. Ensure vehicle fields consistency (regNo <-> numberPlate, ratePerKm <-> pricePerKm)
     try {
       const vehiclesCol = db.collection('vehicles');
