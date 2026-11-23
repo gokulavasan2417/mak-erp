@@ -26,7 +26,7 @@ export function Breadcrumbs({ portal = 'admin' }) {
   };
 
   return (
-    <nav style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
+    <nav className="app-breadcrumbs" style={{ display: 'flex', alignItems: 'center', gap: '0.375rem', fontSize: '0.8125rem', color: 'var(--text-muted)' }}>
       <Link
         to={getPortalHome()}
         style={{

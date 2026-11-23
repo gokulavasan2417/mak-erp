@@ -36,6 +36,13 @@ export function Sidebar({
   useEffect(() => {
     setAvatarError(false);
   }, [currentUser?.avatar]);
+
+  // Auto-close mobile sidebar drawer on navigation change
+  useEffect(() => {
+    if (isMobileOpen && onCloseMobile) {
+      onCloseMobile();
+    }
+  }, [location.pathname]);
   // Track expanded submenus
   const [openSubmenus, setOpenSubmenus] = useState({});
 
@@ -123,35 +130,24 @@ export function Sidebar({
       {isMobileOpen && (
         <div
           onClick={onCloseMobile}
-          style={{
-            position: 'fixed',
-            inset: 0,
-            backgroundColor: 'rgba(9, 13, 22, 0.65)',
-            backdropFilter: 'blur(3px)',
-            zIndex: 1040
-          }}
+          className="sidebar-backdrop"
+          aria-hidden="true"
         />
       )}
 
       {/* Sidebar Container */}
       <aside
+        className={`app-sidebar ${isMobileOpen ? 'mobile-open' : ''} ${isCollapsed ? 'is-collapsed' : ''}`}
         style={{
           width: sidebarWidth,
           minWidth: sidebarWidth,
           height: '100vh',
-          position: 'sticky',
-          top: 0,
           backgroundColor: 'var(--bg-sidebar, #090d16)',
           color: 'var(--text-sidebar, #cbd5e1)',
           display: 'flex',
           flexDirection: 'column',
           borderRight: '1px solid var(--border-dark, #1e293b)',
-          transition: 'width 250ms cubic-bezier(0.4, 0, 0.2, 1), transform 250ms ease',
-          zIndex: 1050,
-          overflow: 'hidden',
-          ...(isMobileOpen
-            ? { position: 'fixed', left: 0, top: 0, transform: 'translateX(0)' }
-            : {})
+          overflow: 'hidden'
         }}
       >
         {/* Brand Header */}

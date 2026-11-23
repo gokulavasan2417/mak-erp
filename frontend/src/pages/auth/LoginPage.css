@@ -417,3 +417,54 @@
   filter: blur(28px);
   pointer-events: none;
 }
+
+/* Mobile Responsiveness for Login Page */
+@media (max-width: 767px) {
+  .login-page-wrapper {
+    padding: 1rem 0.75rem;
+    align-items: flex-start;
+  }
+
+  .login-double-card {
+    border-radius: 20px;
+    min-height: auto;
+    max-width: 100%;
+    box-shadow: 0 10px 25px -5px rgba(9, 13, 22, 0.1);
+  }
+
+  .login-form-container {
+    padding: 1.5rem 1.15rem;
+    height: auto;
+  }
+
+  /* Only show active panel on mobile */
+  .login-form-container:not(.active-block) {
+    display: none !important;
+  }
+
+  .login-role-pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    justify-content: center;
+    margin-bottom: 1rem;
+  }
+
+  .login-role-pill {
+    padding: 0.35rem 0.65rem;
+    font-size: 0.72rem;
+  }
+
+  .login-form-title {
+    font-size: 1.4rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .login-input-box {
+    margin-bottom: 0.85rem;
+  }
+
+  .login-overlay-container {
+    display: none !important;
+  }
+}

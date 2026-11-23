@@ -67,17 +67,18 @@ export function Topbar({
       }}
     >
       {/* Left Area: Mobile Toggle & Breadcrumbs */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
         {onOpenMobileSidebar && (
           <button
             onClick={onOpenMobileSidebar}
+            className="mobile-menu-btn"
             style={{
               background: 'none',
               border: 'none',
               color: 'var(--text-main)',
               cursor: 'pointer',
-              display: 'flex',
               alignItems: 'center',
+              justifyContent: 'center',
               padding: '0.375rem',
               borderRadius: 'var(--radius-sm)'
             }}

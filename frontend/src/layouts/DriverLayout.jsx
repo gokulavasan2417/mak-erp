@@ -17,7 +17,8 @@ import {
   LogOut,
   ShieldCheck,
   PhoneCall,
-  Receipt
+  Receipt,
+  Menu
 } from 'lucide-react';
 import { Sidebar } from '../components/layout/Sidebar';
 import { Topbar } from '../components/layout/Topbar';
@@ -147,19 +148,22 @@ function DriverLayoutContent() {
           }}
         >
           {/* Left: Mobile hamburger & Driver Identity */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
             <button
               onClick={() => setIsMobileOpen(true)}
+              className="mobile-menu-btn"
               style={{
-                display: 'none',
                 background: 'none',
                 border: 'none',
                 cursor: 'pointer',
-                padding: '0.25rem'
+                padding: '0.375rem',
+                color: 'var(--text-main)',
+                alignItems: 'center',
+                justifyContent: 'center'
               }}
-              className="mobile-menu-btn"
+              aria-label="Open Mobile Menu"
             >
-              <span style={{ fontSize: '1.25rem' }}>☰</span>
+              <Menu size={22} />
             </button>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
