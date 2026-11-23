@@ -54,7 +54,9 @@ export function DriverList() {
       const matchesStatus =
         selectedStatus === 'All' ||
         d.dutyStatus === selectedStatus ||
-        d.status === selectedStatus;
+        d.status === selectedStatus ||
+        String(d.dutyStatus || '').toLowerCase() === selectedStatus.toLowerCase() ||
+        String(d.status || '').toLowerCase() === selectedStatus.toLowerCase();
       return matchesSearch && matchesStatus;
     });
   }, [drivers, searchQuery, selectedStatus]);

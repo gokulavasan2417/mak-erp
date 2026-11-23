@@ -72,7 +72,7 @@ export function PaymentsList() {
       const matchType =
         typeFilter === 'All' ||
         pType === typeFilter ||
-        (typeFilter === 'Customer Payment' && (p.paymentType === 'Advance' || p.paymentType === 'Balance'));
+        (typeFilter === 'Customer Payment' && (p.paymentType === 'Advance' || p.paymentType === 'Balance' || p.paymentType === 'Balance Settlement' || String(p.type || '').toLowerCase().includes('customer')));
       const pMethod = String(p.method || p.paymentMethod || '');
       const matchMethod =
         methodFilter === 'All' ||

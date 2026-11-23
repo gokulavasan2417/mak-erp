@@ -84,15 +84,22 @@ export function sanitizeBookingCategory(cat, booking) {
 // Normalize and migrate initial bookings to canonical format
 function cleanInitialBookings() {
   return initialBookings.map((b) => {
-    const total = parseFloat(b.totalAmount) || 0;
-    const adv = parseFloat(b.advancePaid) || 0;
-    const bal = Math.max(0, total - adv);
+    const total = parseFloat(b.totalAmount || b.pricing || b.fare || 0) || 0;
+    const adv = parseFloat(b.amountPaid !== undefined ? b.amountPaid : (b.advancePaid || 0)) || 0;
+    const bal = b.balanceAmount !== undefined && b.balanceAmount !== null && !isNaN(Number(b.balanceAmount))
+      ? parseFloat(b.balanceAmount)
+      : (b.balanceDue !== undefined && b.balanceDue !== null && !isNaN(Number(b.balanceDue))
+          ? parseFloat(b.balanceDue)
+          : Math.max(0, total - adv));
     const timeline = Array.isArray(b.assignmentTimeline)
       ? b.assignmentTimeline
       : Array.isArray(b.history)
       ? b.history.map((h, i) => ({ id: `TL-${i}`, timestamp: h.timestamp, event: h.event, actor: h.user || 'System', status: 'Info' }))
       : [];
     const cleanCat = sanitizeBookingCategory(b.bookingCategory || b.category || b.bookingType, b);
+    const rawPayStatus = String(b.paymentStatus || '').trim().toLowerCase();
+    const isSettled = (total > 0 && bal <= 0) || rawPayStatus === 'paid';
+    const canonicalPayStatus = isSettled ? 'Paid' : adv > 0 ? 'Partial' : 'Pending';
 
     return {
       ...b,
@@ -102,7 +109,10 @@ function cleanInitialBookings() {
       tripType: b.tripType && !String(b.tripType).toLowerCase().includes('one way') ? b.tripType : cleanCat,
       totalAmount: total,
       advancePaid: adv,
+      amountPaid: adv,
       balanceAmount: bal,
+      balanceDue: bal,
+      paymentStatus: canonicalPayStatus,
       assignmentTimeline: timeline,
       history: timeline,
       // Expenses are stored strictly in expenses collection
@@ -345,12 +355,29 @@ export function TripProvider({ children }) {
               const base = local ? { ...local, ...remote } : remote;
               const rawCat = remote.bookingCategory || remote.bookingType || local?.bookingCategory || local?.bookingType || base.category || base.bookingCategory || base.bookingType;
               const cleanCat = sanitizeBookingCategory(rawCat, base);
+              const tot = parseFloat(base.totalAmount || base.pricing || base.fare || 0) || 0;
+              const adv = parseFloat(base.amountPaid !== undefined ? base.amountPaid : (base.advancePaid || 0)) || 0;
+              const bal = base.balanceAmount !== undefined && base.balanceAmount !== null && !isNaN(Number(base.balanceAmount))
+                ? parseFloat(base.balanceAmount)
+                : (base.balanceDue !== undefined && base.balanceDue !== null && !isNaN(Number(base.balanceDue))
+                    ? parseFloat(base.balanceDue)
+                    : Math.max(0, tot - adv));
+              const rawPayStatus = String(base.paymentStatus || '').trim().toLowerCase();
+              const isSettled = (tot > 0 && bal <= 0) || rawPayStatus === 'paid';
+              const canonicalPayStatus = isSettled ? 'Paid' : adv > 0 ? 'Partial' : 'Pending';
+
               return {
                 ...base,
                 bookingCategory: cleanCat,
                 bookingType: cleanCat,
                 category: cleanCat,
                 tripType: base.tripType && !String(base.tripType).toLowerCase().includes('one way') ? base.tripType : cleanCat,
+                totalAmount: tot,
+                advancePaid: adv,
+                amountPaid: adv,
+                balanceAmount: bal,
+                balanceDue: bal,
+                paymentStatus: canonicalPayStatus,
                 customerName: resolvedCustomerName,
                 fullName: resolvedCustomerName,
                 name: resolvedCustomerName,
@@ -523,12 +550,29 @@ export function TripProvider({ children }) {
       const combined = [...stored, ...missing];
       return combined.map((b) => {
         const cleanCat = sanitizeBookingCategory(b.bookingCategory || b.category || b.bookingType, b);
+        const tot = parseFloat(b.totalAmount || b.pricing || b.fare || 0) || 0;
+        const adv = parseFloat(b.amountPaid !== undefined ? b.amountPaid : (b.advancePaid || 0)) || 0;
+        const bal = b.balanceAmount !== undefined && b.balanceAmount !== null && !isNaN(Number(b.balanceAmount))
+          ? parseFloat(b.balanceAmount)
+          : (b.balanceDue !== undefined && b.balanceDue !== null && !isNaN(Number(b.balanceDue))
+              ? parseFloat(b.balanceDue)
+              : Math.max(0, tot - adv));
+        const rawPayStatus = String(b.paymentStatus || '').trim().toLowerCase();
+        const isSettled = (tot > 0 && bal <= 0) || rawPayStatus === 'paid';
+        const canonicalPayStatus = isSettled ? 'Paid' : adv > 0 ? 'Partial' : 'Pending';
+
         return {
           ...b,
           bookingCategory: cleanCat,
           bookingType: cleanCat,
           category: cleanCat,
           tripType: b.tripType && !String(b.tripType).toLowerCase().includes('one way') ? b.tripType : cleanCat,
+          totalAmount: tot,
+          advancePaid: adv,
+          amountPaid: adv,
+          balanceAmount: bal,
+          balanceDue: bal,
+          paymentStatus: canonicalPayStatus,
           assignmentTimeline: b.assignmentTimeline || b.history || [],
           history: b.assignmentTimeline || b.history || []
         };

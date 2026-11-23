@@ -43,16 +43,18 @@ export function CustomerList() {
   // Filtered & searched customers
   const filteredCustomers = useMemo(() => {
     return customers.filter((cust) => {
+      const s = (searchTerm || '').trim().toLowerCase();
       const matchSearch =
-        searchTerm === '' ||
-        cust.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        cust.phone.includes(searchTerm) ||
-        (cust.email && cust.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (cust.city && cust.city.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (cust.gstin && cust.gstin.toLowerCase().includes(searchTerm.toLowerCase()));
+        s === '' ||
+        String(cust.name || '').toLowerCase().includes(s) ||
+        String(cust.phone || '').includes(s) ||
+        String(cust.email || '').toLowerCase().includes(s) ||
+        String(cust.city || '').toLowerCase().includes(s) ||
+        String(cust.gstin || '').toLowerCase().includes(s) ||
+        String(cust.id || '').toLowerCase().includes(s);
 
-      const matchType = typeFilter === 'All' || cust.type === typeFilter;
-      const matchStatus = statusFilter === 'All' || cust.status === statusFilter;
+      const matchType = typeFilter === 'All' || String(cust.type || '').toLowerCase() === typeFilter.toLowerCase();
+      const matchStatus = statusFilter === 'All' || String(cust.status || '').toLowerCase() === statusFilter.toLowerCase();
 
       return matchSearch && matchType && matchStatus;
     });

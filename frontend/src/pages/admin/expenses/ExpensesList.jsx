@@ -147,9 +147,14 @@ export function ExpensesList() {
         categoryFilter === 'All' ||
         categoryFilter === 'All Categories' ||
         eCategory === categoryFilter.toLowerCase() ||
-        eSubCategory === categoryFilter.toLowerCase();
+        eCategory.includes(categoryFilter.toLowerCase()) ||
+        eSubCategory === categoryFilter.toLowerCase() ||
+        eSubCategory.includes(categoryFilter.toLowerCase());
 
-      const matchStatus = statusFilter === 'All' || e.status === statusFilter;
+      const matchStatus =
+        statusFilter === 'All' ||
+        e.status === statusFilter ||
+        String(e.status || '').toLowerCase() === String(statusFilter).toLowerCase();
 
       return matchSearch && matchCategory && matchStatus;
     });

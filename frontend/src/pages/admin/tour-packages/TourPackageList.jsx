@@ -154,8 +154,8 @@ export function TourPackageList() {
       const matchesCategory =
         selectedCategory === 'All' ||
         selectedCategory === 'All Categories' ||
-        pkg.category === selectedCategory ||
-        pkgCats.includes(selectedCategory);
+        (pkg.category && pkg.category.toLowerCase() === selectedCategory.toLowerCase()) ||
+        pkgCats.some((c) => c && c.toLowerCase() === selectedCategory.toLowerCase());
 
       return matchesSearch && matchesCategory;
     });

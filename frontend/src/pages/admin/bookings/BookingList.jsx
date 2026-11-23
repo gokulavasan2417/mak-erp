@@ -177,19 +177,72 @@ export function BookingList() {
         b.bookingType = 'Round Trip';
       }
 
-      const matchesSearch =
-        (b.id || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (b.bookingNumber || b.refId || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (b.customerName || b.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (b.customerPhone || b.mobileNumber || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (b.pickupLocation || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (b.destination || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
-        (b.driverName && b.driverName.toLowerCase().includes(searchQuery.toLowerCase())) ||
-        (b.vehicleName && b.vehicleName.toLowerCase().includes(searchQuery.toLowerCase()));
+      const q = searchQuery.trim().toLowerCase();
+      const matchesSearch = !q ||
+        (b.id || '').toLowerCase().includes(q) ||
+        (b.bookingNumber || b.refId || '').toLowerCase().includes(q) ||
+        (b.customerName || b.fullName || '').toLowerCase().includes(q) ||
+        (b.customerPhone || b.mobileNumber || '').toLowerCase().includes(q) ||
+        (b.customerEmail || b.email || '').toLowerCase().includes(q) ||
+        (b.pickupLocation || b.fromLocation || '').toLowerCase().includes(q) ||
+        (b.destination || b.dropLocation || b.toLocation || '').toLowerCase().includes(q) ||
+        (b.driverName && b.driverName.toLowerCase().includes(q)) ||
+        (b.vehicleName && b.vehicleName.toLowerCase().includes(q)) ||
+        (b.vehicleRegNo && b.vehicleRegNo.toLowerCase().replace(/\s+/g, '').includes(q.replace(/\s+/g, ''))) ||
+        (b.packageName && b.packageName.toLowerCase().includes(q));
 
-      const matchesCategory = selectedCategory === 'All' || b.bookingCategory === selectedCategory;
-      const matchesStatus = selectedStatus === 'All' || b.bookingStatus === selectedStatus;
-      const matchesPayment = selectedPaymentStatus === 'All' || b.paymentStatus === selectedPaymentStatus;
+      // Category matching
+      const bCat = (b.bookingCategory || b.category || b.bookingType || b.tripType || '').trim();
+      const matchesCategory = selectedCategory === 'All' ||
+        bCat.toLowerCase() === selectedCategory.toLowerCase() ||
+        (selectedCategory === 'Round Trip' && (bCat.toLowerCase().includes('round') || bCat.toLowerCase().includes('return'))) ||
+        (selectedCategory === 'Local Trip' && (bCat.toLowerCase().includes('local') || bCat.toLowerCase().includes('city') || bCat.toLowerCase().includes('rental'))) ||
+        (selectedCategory === 'Tour Package' && (bCat.toLowerCase().includes('tour') || bCat.toLowerCase().includes('package'))) ||
+        (selectedCategory === 'Airport Transfer' && (bCat.toLowerCase().includes('airport') || bCat.toLowerCase().includes('transfer'))) ||
+        (selectedCategory === 'Custom Journey' && bCat.toLowerCase().includes('custom'));
+
+      // Status matching
+      const bStatus = (b.bookingStatus || b.status || b.tripStatus || 'Confirmed').trim();
+      const matchesStatus = selectedStatus === 'All' ||
+        bStatus.toLowerCase() === selectedStatus.toLowerCase() ||
+        (selectedStatus === 'Pending' && (bStatus.toLowerCase().includes('pending') || bStatus.toLowerCase().includes('awaiting'))) ||
+        (selectedStatus === 'Confirmed' && (bStatus.toLowerCase().includes('confirmed') || bStatus.toLowerCase().includes('accepted'))) ||
+        (selectedStatus === 'On Trip' && (bStatus.toLowerCase().includes('on trip') || bStatus.toLowerCase().includes('in progress') || bStatus.toLowerCase().includes('started'))) ||
+        (selectedStatus === 'Completed' && (bStatus.toLowerCase().includes('completed') || bStatus.toLowerCase().includes('concluded') || bStatus.toLowerCase().includes('finished'))) ||
+        (selectedStatus === 'Cancelled' && bStatus.toLowerCase().includes('cancel'));
+
+      // Payment matching
+      const totalFare = Number(b.totalAmount || b.pricing || b.fare || b.totalFare || b.fareAmount || 0);
+      const paid = Number(b.amountPaid !== undefined ? b.amountPaid : (b.advancePaid !== undefined ? b.advancePaid : 0));
+      const bal = b.balanceAmount !== undefined && b.balanceAmount !== null && !isNaN(Number(b.balanceAmount))
+        ? Number(b.balanceAmount)
+        : (b.balanceDue !== undefined && b.balanceDue !== null && !isNaN(Number(b.balanceDue))
+            ? Number(b.balanceDue)
+            : Math.max(0, totalFare - paid));
+
+      const rawPayStatus = String(b.paymentStatus || b.paymentOption || '').trim().toLowerCase();
+      const isCancelled = bStatus.toLowerCase().includes('cancel');
+
+      let matchesPayment = true;
+      if (selectedPaymentStatus === 'All') {
+        matchesPayment = true;
+      } else if (selectedPaymentStatus === 'Pending') {
+        // Any trip where balance is due, payment is unpaid, or balance collection is pending
+        matchesPayment = (!isCancelled && (bal > 0 || paid === 0 || rawPayStatus.includes('pending') || rawPayStatus.includes('unpaid') || rawPayStatus.includes('partial'))) ||
+          (rawPayStatus.includes('pending') || rawPayStatus.includes('unpaid'));
+      } else if (selectedPaymentStatus === 'Partial') {
+        // Bookings where some advance was paid but remaining balance is still due
+        matchesPayment = (!isCancelled && paid > 0 && bal > 0) || rawPayStatus.includes('partial');
+      } else if (selectedPaymentStatus === 'Paid') {
+        // Fully settled bookings (100% paid, no balance due)
+        matchesPayment = !isCancelled && ((bal <= 0 && totalFare > 0) || rawPayStatus === 'paid' || rawPayStatus.includes('full') || rawPayStatus.includes('settled'));
+      } else if (selectedPaymentStatus === 'Refund Due') {
+        // Cancelled bookings where money was paid and refund is pending
+        matchesPayment = (isCancelled && paid > 0 && !rawPayStatus.includes('refunded')) || rawPayStatus.includes('refund due') || rawPayStatus.includes('refund_due');
+      } else if (selectedPaymentStatus === 'Refunded') {
+        // Cancelled bookings where refund has been processed
+        matchesPayment = rawPayStatus.includes('refunded');
+      }
 
       return matchesSearch && matchesCategory && matchesStatus && matchesPayment;
     }).sort((a, b) => {
@@ -239,14 +292,16 @@ export function BookingList() {
       }
 
       if (sortField === 'totalAmount') {
-        const amtA = parseFloat(a.totalAmount) || 0;
-        const amtB = parseFloat(b.totalAmount) || 0;
+        const amtA = parseFloat(a.totalAmount || a.pricing || a.fare || a.totalFare || 0) || 0;
+        const amtB = parseFloat(b.totalAmount || b.pricing || b.fare || b.totalFare || 0) || 0;
         return sortDirection === 'asc' ? amtA - amtB : amtB - amtA;
       }
 
       if (sortField === 'journeyDate' || sortField === 'createdAt') {
-        const timeA = a[sortField] ? new Date(a[sortField]).getTime() : 0;
-        const timeB = b[sortField] ? new Date(b[sortField]).getTime() : 0;
+        const rawDateA = a.journeyDate || a.startDate || a.travelDate || a.pickupDate || a.createdAt;
+        const rawDateB = b.journeyDate || b.startDate || b.travelDate || b.pickupDate || b.createdAt;
+        const timeA = rawDateA ? new Date(rawDateA).getTime() : 0;
+        const timeB = rawDateB ? new Date(rawDateB).getTime() : 0;
         if (timeA && timeB) {
           return sortDirection === 'asc' ? timeA - timeB : timeB - timeA;
         }
