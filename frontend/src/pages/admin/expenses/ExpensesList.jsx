@@ -110,13 +110,36 @@ export function ExpensesList() {
     'Other Trip Expenses'
   ];
 
+  // Helper to distinguish Car Service & Workshop Maintenance vs Driver Trip Claims
+  const isCarServiceExpense = (e) => {
+    if (!e) return false;
+    // Explicit classification tag
+    if (e.expenseType === 'service') return true;
+    if (e.expenseType === 'trip') return false;
+    // If it is explicitly attached to a booking or has a trip claim ID prefix
+    if (e.bookingId || e.bookingNumber || e.bookingRef || String(e.id || e._id || '').includes('TRP') || String(e.tripId || '').includes('TRP')) {
+      return false;
+    }
+    // Periodic car servicing or maintenance in workshop
+    const cat = String(e.category || '').toLowerCase();
+    if (cat === 'vehicle maintenance' || cat === 'maintenance' || Boolean(e.workshopName || (e.odometerKm && !e.bookingId))) {
+      return true;
+    }
+    return false;
+  };
+
+  const isTripClaimExpense = (e) => {
+    if (!e) return false;
+    return !isCarServiceExpense(e);
+  };
+
   // Filtered expenses
   const filteredExpenses = useMemo(() => {
     return (expenses || []).filter((e) => {
       if (!e) return false;
 
       // Scope filter: all vs car service vs trip claims
-      const isService = e.category === 'Vehicle Maintenance' || Boolean(e.vehicleRegNo || e.workshopName || e.subCategory);
+      const isService = isCarServiceExpense(e);
       if (scopeFilter === 'service' && !isService) return false;
       if (scopeFilter === 'trip' && isService) return false;
 
@@ -175,22 +198,22 @@ export function ExpensesList() {
 
   const serviceTotal = useMemo(() => {
     return (expenses || [])
-      .filter((e) => e && (e.category === 'Vehicle Maintenance' || e.workshopName || e.vehicleRegNo) && (e.status === 'Approved' || e.status === 'Paid'))
+      .filter((e) => e && isCarServiceExpense(e) && (e.status === 'Approved' || e.status === 'Paid'))
       .reduce((sum, e) => sum + (parseFloat(e.approvedAmount || e.amount || 0) || 0), 0);
   }, [expenses]);
 
   const serviceCount = useMemo(() => {
-    return (expenses || []).filter((e) => e && (e.category === 'Vehicle Maintenance' || e.workshopName || e.vehicleRegNo)).length;
+    return (expenses || []).filter((e) => e && isCarServiceExpense(e)).length;
   }, [expenses]);
 
   const tripClaimsTotal = useMemo(() => {
     return (expenses || [])
-      .filter((e) => e && e.category !== 'Vehicle Maintenance' && !e.workshopName && (e.status === 'Approved' || e.status === 'Paid'))
+      .filter((e) => e && isTripClaimExpense(e) && (e.status === 'Approved' || e.status === 'Paid'))
       .reduce((sum, e) => sum + (parseFloat(e.approvedAmount || e.amount || 0) || 0), 0);
   }, [expenses]);
 
   const tripClaimsCount = useMemo(() => {
-    return (expenses || []).filter((e) => e && e.category !== 'Vehicle Maintenance' && !e.workshopName).length;
+    return (expenses || []).filter((e) => e && isTripClaimExpense(e)).length;
   }, [expenses]);
 
   const totalPending = useMemo(() => {
@@ -464,7 +487,13 @@ export function ExpensesList() {
 
       {/* KPI Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: '1rem' }}>
-        <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+        <div
+          onClick={() => { setScopeFilter('all'); setStatusFilter('Approved'); setCurrentPage(1); }}
+          style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', cursor: 'pointer', transition: 'all 0.15s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          title="Click to view Approved Expenses"
+        >
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#059669', textTransform: 'uppercase' }}>
             Total Approved Expenses
           </div>
@@ -476,7 +505,13 @@ export function ExpensesList() {
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+        <div
+          onClick={() => { setScopeFilter('service'); setStatusFilter('All'); setCurrentPage(1); }}
+          style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', cursor: 'pointer', transition: 'all 0.15s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          title="Click to view Car Services & Maintenance"
+        >
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#b45309', textTransform: 'uppercase' }}>
             Car Services &amp; Maintenance
           </div>
@@ -488,7 +523,13 @@ export function ExpensesList() {
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+        <div
+          onClick={() => { setScopeFilter('trip'); setStatusFilter('All'); setCurrentPage(1); }}
+          style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', cursor: 'pointer', transition: 'all 0.15s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          title="Click to view Trip & Driver Claims"
+        >
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2563eb', textTransform: 'uppercase' }}>
             Driver Trip Claims
           </div>
@@ -496,11 +537,17 @@ export function ExpensesList() {
             ₹{(tripClaimsTotal || 0).toLocaleString('en-IN')}
           </div>
           <div style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem' }}>
-            {tripClaimsCount} trip claims settled/approved
+            {tripClaimsCount} trip claims recorded
           </div>
         </div>
 
-        <div style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)' }}>
+        <div
+          onClick={() => { setScopeFilter('all'); setStatusFilter('Pending Approval'); setCurrentPage(1); }}
+          style={{ backgroundColor: '#ffffff', padding: '1.25rem', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.03)', cursor: 'pointer', transition: 'all 0.15s ease' }}
+          onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; }}
+          title="Click to view Pending Approval Claims"
+        >
           <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#d97706', textTransform: 'uppercase' }}>
             Pending Approval ({pendingCount})
           </div>
@@ -629,18 +676,24 @@ export function ExpensesList() {
                 </div>
 
                 <div style={{ fontSize: '0.8125rem', color: '#475569', display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
-                  {exp.vehicleRegNo || exp.vehicleNumber ? (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#1e293b' }}>
+                  {exp.bookingId || exp.tripId ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#1e293b', flexWrap: 'wrap' }}>
+                      <span>Booking: <Link to={`/admin/bookings/${exp.bookingId || exp.id || ''}`} style={{ fontWeight: 700, color: '#2C3480' }}>{exp.bookingId || exp.id || 'N/A'}</Link></span>
+                      {exp.tripId && <span className="font-mono" style={{ color: '#64748b' }}>• Trip: {exp.tripId}</span>}
+                      {(exp.vehicleRegNo || exp.vehicleNumber) && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', color: '#2C3480', fontWeight: 600 }}>
+                          • <Car size={13} /> {exp.vehicleRegNo || exp.vehicleNumber}
+                        </span>
+                      )}
+                    </div>
+                  ) : (exp.vehicleRegNo || exp.vehicleNumber) ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', color: '#1e293b', flexWrap: 'wrap' }}>
                       <Car size={15} color="#2C3480" />
                       <span>Vehicle: <strong style={{ color: '#2C3480' }}>{exp.vehicleRegNo || exp.vehicleNumber}</strong></span>
                       {exp.workshopName && <span style={{ color: '#64748b' }}>• Workshop: {exp.workshopName}</span>}
                       {exp.odometerKm > 0 && <span style={{ color: '#64748b' }}>• {Number(exp.odometerKm).toLocaleString('en-IN')} KM</span>}
                     </div>
-                  ) : (
-                    <div>
-                      Booking: <Link to={`/admin/bookings/${exp.bookingId || exp.id || ''}`} style={{ fontWeight: 700, color: '#2C3480' }}>{exp.bookingId || exp.id || 'N/A'}</Link> • Trip: <span className="font-mono">{exp.tripId || 'TRP-001'}</span>
-                    </div>
-                  )}
+                  ) : null}
                   <div>
                     Handled by: <strong>{exp.driverName || exp.payee || 'Operations'}</strong> • Date: {formatDateDMY(exp.expenseDate || exp.date) || 'Recent'}
                     {exp.invoiceNo && <span> • Bill #{exp.invoiceNo}</span>}
@@ -730,15 +783,24 @@ export function ExpensesList() {
                       <span className="font-mono" style={{ fontWeight: 800, color: '#2C3480' }}>{expId}</span>
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>
-                      {exp.vehicleRegNo || exp.vehicleNumber ? (
+                      {exp.bookingId || exp.tripId ? (
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <Link to={`/admin/bookings/${exp.bookingId || exp.id || ''}`} style={{ fontWeight: 700, color: '#2C3480' }}>
+                            {exp.bookingId || exp.id || 'N/A'}
+                          </Link>
+                          {(exp.vehicleRegNo || exp.vehicleNumber) && (
+                            <span style={{ fontSize: '0.75rem', color: '#64748b', display: 'inline-flex', alignItems: 'center', gap: '0.2rem' }}>
+                              <Car size={11} /> {exp.vehicleRegNo || exp.vehicleNumber}
+                            </span>
+                          )}
+                        </div>
+                      ) : (exp.vehicleRegNo || exp.vehicleNumber) ? (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontWeight: 700, color: '#2C3480' }}>
                           <Car size={13} color="#2C3480" />
                           {exp.vehicleRegNo || exp.vehicleNumber}
                         </span>
                       ) : (
-                        <Link to={`/admin/bookings/${exp.bookingId || exp.id || ''}`} style={{ fontWeight: 700, color: '#2C3480' }}>
-                          {exp.bookingId || exp.id || 'N/A'}
-                        </Link>
+                        <span style={{ color: '#94a3b8' }}>—</span>
                       )}
                     </td>
                     <td style={{ padding: '0.75rem 1rem' }}>{exp.driverName || exp.payee || 'Operations'}</td>
