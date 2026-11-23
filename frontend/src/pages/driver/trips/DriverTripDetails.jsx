@@ -1,6 +1,6 @@
 // MAK Tours & Travels ERP - Driver Trip Details & Lifecycle Execution
 // CRITICAL: ONE WAY TRIP MUST NOT EXIST ANYWHERE IN THIS APPLICATION.
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import {
   Compass,
