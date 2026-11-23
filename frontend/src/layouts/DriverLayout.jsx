@@ -130,7 +130,7 @@ function DriverLayoutContent() {
         onCloseMobile={() => setIsMobileOpen(false)}
       />
 
-      <div className="main-content" style={{ paddingBottom: '70px' }}>
+      <div className="main-content">
         {/* Custom Enhanced Topbar with Driver SOS */}
         <div
           style={{
@@ -142,8 +142,8 @@ function DriverLayoutContent() {
             alignItems: 'center',
             justifyContent: 'space-between',
             gap: '1rem',
-            position: 'sticky',
-            top: 0,
+            flexShrink: 0,
+            position: 'relative',
             zIndex: 1010
           }}
         >
@@ -292,7 +292,7 @@ function DriverLayoutContent() {
           </div>
         </div>
 
-        <main className="page-container" style={{ padding: '1.5rem' }} key={location.pathname}>
+        <main className="page-container" key={location.pathname}>
           <Suspense fallback={<LoadingSpinner message="Loading driver module..." />}>
             <Outlet key={location.pathname} />
           </Suspense>

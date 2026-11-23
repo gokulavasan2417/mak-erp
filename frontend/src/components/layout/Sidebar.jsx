@@ -141,13 +141,14 @@ export function Sidebar({
         style={{
           width: sidebarWidth,
           minWidth: sidebarWidth,
-          height: '100vh',
+          height: '100%',
           backgroundColor: 'var(--bg-sidebar, #090d16)',
           color: 'var(--text-sidebar, #cbd5e1)',
           display: 'flex',
           flexDirection: 'column',
           borderRight: '1px solid var(--border-dark, #1e293b)',
-          overflow: 'hidden'
+          overflow: 'hidden',
+          flexShrink: 0
         }}
       >
         {/* Brand Header */}

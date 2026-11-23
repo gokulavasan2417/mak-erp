@@ -60,8 +60,8 @@ export function Topbar({
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'space-between',
-        position: 'sticky',
-        top: 0,
+        flexShrink: 0,
+        position: 'relative',
         zIndex: 100,
         gap: '1rem'
       }}

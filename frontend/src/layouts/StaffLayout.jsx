@@ -73,7 +73,7 @@ function StaffLayoutContent() {
           portal="staff"
           onOpenMobileSidebar={() => setIsMobileOpen(true)}
         />
-        <main className="page-container" style={{ padding: '1.5rem' }} key={location.pathname}>
+        <main className="page-container" key={location.pathname}>
           <Outlet key={location.pathname} />
         </main>
       </div>
