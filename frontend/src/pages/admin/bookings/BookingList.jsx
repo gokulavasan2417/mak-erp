@@ -1,7 +1,7 @@
 // MAK Tours & Travels ERP - Booking Management List
 // CRITICAL: ONE WAY TRIP MUST NOT EXIST ANYWHERE IN THIS APPLICATION.
 import React, { useState, useMemo, useRef, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Calendar,
   Plus,
@@ -40,7 +40,7 @@ import { useAdminData } from '../../../context/AdminDataContext';
 import { useToast } from '../../../context/ToastContext';
 import { bookingCategories, bookingStatuses, paymentStatuses } from '../../../data';
 import { bookingService } from '../../../services';
-import { formatDateDMY } from '../../../utils/dateUtils';
+import { formatDateDMY, isBookingToday, isBookingActive, isBookingUpcoming, isBookingCompleted } from '../../../utils/dateUtils';
 
 export function BookingList() {
   const navigate = useNavigate();
@@ -66,14 +66,61 @@ export function BookingList() {
     }
   };
 
+  // Search Params & Timeline Filter Synchronization
+  const [searchParams, setSearchParams] = useSearchParams();
+
+  const getTimelineFromParams = (params) => {
+    const val = (params.get('timeframe') || params.get('timeline') || params.get('filter') || '').toLowerCase();
+    if (val === 'today') return 'Today';
+    if (val === 'upcoming') return 'Upcoming';
+    if (val === 'active') return 'Active';
+    if (val === 'completed') return 'Completed';
+    return 'All';
+  };
+
   // Search & Filter States
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedTimeline, setSelectedTimeline] = useState(() => getTimelineFromParams(searchParams));
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [selectedStatus, setSelectedStatus] = useState('All');
   const [selectedPaymentStatus, setSelectedPaymentStatus] = useState('All');
   const [viewMode, setViewMode] = useState('grid'); // 'grid' (default modern cards) or 'table'
   const [currentPage, setCurrentPage] = useState(1);
   const pageSize = 8;
+
+  // Sync if URL search params change (e.g. user navigated from Dashboard KPI card)
+  useEffect(() => {
+    const target = getTimelineFromParams(searchParams);
+    if (target !== selectedTimeline) {
+      setSelectedTimeline(target);
+      setCurrentPage(1);
+    }
+  }, [searchParams]);
+
+  const handleTimelineChange = (newVal) => {
+    setSelectedTimeline(newVal);
+    setCurrentPage(1);
+    const nextParams = new URLSearchParams(searchParams);
+    if (newVal === 'All') {
+      nextParams.delete('timeframe');
+      nextParams.delete('timeline');
+      nextParams.delete('filter');
+    } else {
+      nextParams.set('timeframe', newVal.toLowerCase());
+    }
+    setSearchParams(nextParams, { replace: true });
+  };
+
+  // Timeline counts for filter pills (matching Dashboard KPI metrics)
+  const timelineCounts = useMemo(() => {
+    return {
+      All: bookings.length,
+      Today: bookings.filter(isBookingToday).length,
+      Upcoming: bookings.filter(isBookingUpcoming).length,
+      Active: bookings.filter(isBookingActive).length,
+      Completed: bookings.filter(isBookingCompleted).length
+    };
+  }, [bookings]);
 
   // Unified Dispatch Modal State (Car & Driver Dropdowns)
   const [dispatchModalBooking, setDispatchModalBooking] = useState(null);
@@ -244,7 +291,19 @@ export function BookingList() {
         matchesPayment = rawPayStatus.includes('refunded');
       }
 
-      return matchesSearch && matchesCategory && matchesStatus && matchesPayment;
+      // Timeline matching (Synchronized with Dashboard KPI Cards)
+      let matchesTimeline = true;
+      if (selectedTimeline === 'Today') {
+        matchesTimeline = isBookingToday(b);
+      } else if (selectedTimeline === 'Upcoming') {
+        matchesTimeline = isBookingUpcoming(b);
+      } else if (selectedTimeline === 'Active') {
+        matchesTimeline = isBookingActive(b);
+      } else if (selectedTimeline === 'Completed') {
+        matchesTimeline = isBookingCompleted(b);
+      }
+
+      return matchesSearch && matchesCategory && matchesStatus && matchesPayment && matchesTimeline;
     }).sort((a, b) => {
       // Default: Completion Order (Lifecycle Ranking)
       // Active trips stay on top; completed trips go down to the bottom
@@ -311,7 +370,7 @@ export function BookingList() {
       let bVal = b[sortField] || '';
       return sortDirection === 'asc' ? String(aVal).localeCompare(String(bVal)) : String(bVal).localeCompare(String(aVal));
     });
-  }, [bookings, searchQuery, selectedCategory, selectedStatus, selectedPaymentStatus, sortField, sortDirection]);
+  }, [bookings, searchQuery, selectedTimeline, selectedCategory, selectedStatus, selectedPaymentStatus, sortField, sortDirection]);
 
   // Paginated bookings
   const paginatedBookings = useMemo(() => {
@@ -561,6 +620,13 @@ export function BookingList() {
             />
 
             <FilterSelect
+              label="Timeline"
+              value={selectedTimeline}
+              onChange={handleTimelineChange}
+              options={['All', 'Today', 'Upcoming', 'Active', 'Completed']}
+            />
+
+            <FilterSelect
               label="Category"
               value={selectedCategory}
               onChange={(val) => { setSelectedCategory(val); setCurrentPage(1); }}
@@ -581,6 +647,92 @@ export function BookingList() {
               options={['All', ...paymentStatuses]}
             />
           </div>
+        </div>
+
+        {/* Quick Timeline Filter Pills (Synchronized with Dashboard KPI Cards) */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.875rem', paddingTop: '0.875rem', borderTop: '1px solid #f1f5f9' }}>
+          <span style={{ fontSize: '0.8rem', fontWeight: 600, color: '#64748b', marginRight: '0.25rem' }}>Quick Views:</span>
+          {[
+            { id: 'All', label: 'All Bookings', count: timelineCounts.All, color: '#2C3480' },
+            { id: 'Today', label: "Today's Bookings", count: timelineCounts.Today, color: '#0284C7' },
+            { id: 'Upcoming', label: 'Upcoming Trips', count: timelineCounts.Upcoming, color: '#8B5CF6' },
+            { id: 'Active', label: 'Active Trips', count: timelineCounts.Active, color: '#10B981' },
+            { id: 'Completed', label: 'Completed Trips', count: timelineCounts.Completed, color: '#059669' }
+          ].map((pill) => {
+            const isActive = selectedTimeline === pill.id;
+            return (
+              <button
+                key={pill.id}
+                type="button"
+                onClick={() => handleTimelineChange(pill.id)}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '0.45rem',
+                  padding: '0.35rem 0.8rem',
+                  borderRadius: '9999px',
+                  fontSize: '0.8125rem',
+                  fontWeight: isActive ? 700 : 500,
+                  border: isActive ? `1.5px solid ${pill.color}` : '1px solid #e2e8f0',
+                  backgroundColor: isActive ? pill.color : '#ffffff',
+                  color: isActive ? '#ffffff' : '#475569',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: isActive ? '0 2px 4px rgba(44, 52, 128, 0.16)' : 'none'
+                }}
+              >
+                <span>{pill.label}</span>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    padding: '0.1rem 0.5rem',
+                    borderRadius: '9999px',
+                    fontSize: '0.725rem',
+                    fontWeight: 700,
+                    backgroundColor: isActive ? 'rgba(255, 255, 255, 0.25)' : '#f1f5f9',
+                    color: isActive ? '#ffffff' : '#64748b'
+                  }}
+                >
+                  {pill.count}
+                </span>
+              </button>
+            );
+          })}
+
+          {/* Reset Filters action when any filter is active */}
+          {(selectedTimeline !== 'All' || selectedStatus !== 'All' || selectedCategory !== 'All' || selectedPaymentStatus !== 'All' || searchQuery) && (
+            <button
+              type="button"
+              onClick={() => {
+                handleTimelineChange('All');
+                setSelectedCategory('All');
+                setSelectedStatus('All');
+                setSelectedPaymentStatus('All');
+                setSearchQuery('');
+                setCurrentPage(1);
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                marginLeft: 'auto',
+                padding: '0.35rem 0.75rem',
+                borderRadius: '6px',
+                fontSize: '0.775rem',
+                fontWeight: 600,
+                color: '#ef4444',
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease'
+              }}
+              title="Reset all filters back to All Bookings"
+            >
+              Reset Filters
+            </button>
+          )}
         </div>
       </Card>
 

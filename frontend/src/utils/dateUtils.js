@@ -102,20 +102,115 @@ export function isDateLike(key = '', val = '') {
 export function normalizeDate(dateVal) {
   if (!dateVal) return '';
   if (typeof dateVal === 'string') {
+    const trimmed = dateVal.trim();
     // If it's already YYYY-MM-DD or starts with it
-    if (/^\d{4}-\d{2}-\d{2}/.test(dateVal)) {
-      return dateVal.substring(0, 10);
+    if (/^\d{4}-\d{2}-\d{2}/.test(trimmed)) {
+      return trimmed.substring(0, 10);
     }
-    const d = new Date(dateVal);
+    // If DD-MM-YYYY or DD/MM/YYYY
+    const dmy = trimmed.match(/^(\d{1,2})[-/](\d{1,2})[-/](\d{4})/);
+    if (dmy) {
+      const d = String(dmy[1]).padStart(2, '0');
+      const m = String(dmy[2]).padStart(2, '0');
+      const y = dmy[3];
+      return `${y}-${m}-${d}`;
+    }
+    const d = new Date(trimmed);
     if (!isNaN(d.getTime())) {
-      return d.toISOString().substring(0, 10);
+      const y = d.getFullYear();
+      const m = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${y}-${m}-${day}`;
     }
-    return dateVal;
+    return trimmed;
   }
   if (dateVal instanceof Date && !isNaN(dateVal.getTime())) {
-    return dateVal.toISOString().substring(0, 10);
+    const y = dateVal.getFullYear();
+    const m = String(dateVal.getMonth() + 1).padStart(2, '0');
+    const day = String(dateVal.getDate()).padStart(2, '0');
+    return `${y}-${m}-${day}`;
   }
   return '';
+}
+
+/**
+ * Check if a booking is associated with today (created today, journey date today, or started/completed today).
+ */
+export function isBookingToday(b) {
+  if (!b) return false;
+  const todayYMD = normalizeDate(new Date());
+
+  const check = (val) => {
+    if (!val) return false;
+    return normalizeDate(val) === todayYMD;
+  };
+
+  return (
+    check(b.createdAt) ||
+    check(b.journeyDate) ||
+    check(b.travelDate) ||
+    check(b.pickupDate) ||
+    check(b.startDate) ||
+    check(b.date) ||
+    check(b.tripStartedAt) ||
+    check(b.completedAt)
+  );
+}
+
+/**
+ * Check if a booking is active (on trip / in progress).
+ */
+export function isBookingActive(b) {
+  if (!b) return false;
+  const bStatus = (b.bookingStatus || b.status || '').trim().toLowerCase();
+  const tStatus = (b.tripStatus || '').trim().toLowerCase();
+  return (
+    bStatus === 'on trip' ||
+    bStatus === 'in progress' ||
+    tStatus === 'in progress' ||
+    tStatus === 'on trip' ||
+    tStatus === 'in transit'
+  );
+}
+
+/**
+ * Check if a booking is completed.
+ */
+export function isBookingCompleted(b) {
+  if (!b) return false;
+  const bStatus = (b.bookingStatus || b.status || '').trim().toLowerCase();
+  const tStatus = (b.tripStatus || '').trim().toLowerCase();
+  return (
+    bStatus === 'completed' ||
+    bStatus === 'concluded' ||
+    tStatus === 'completed' ||
+    tStatus === 'trip completed'
+  );
+}
+
+/**
+ * Check if a booking is upcoming.
+ */
+export function isBookingUpcoming(b) {
+  if (!b) return false;
+  const bStatus = (b.bookingStatus || b.status || '').trim().toLowerCase();
+  const tStatus = (b.tripStatus || '').trim().toLowerCase();
+  const isCancelled = bStatus.includes('cancel') || tStatus.includes('cancel');
+  if (isCancelled || isBookingCompleted(b) || isBookingActive(b)) return false;
+
+  const todayYMD = normalizeDate(new Date());
+  const jDate = normalizeDate(b.journeyDate || b.travelDate || b.pickupDate || b.startDate);
+  
+  if (jDate && jDate > todayYMD) return true;
+
+  return (
+    bStatus === 'confirmed' ||
+    bStatus === 'pending' ||
+    tStatus === 'upcoming' ||
+    tStatus.includes('awaiting') ||
+    tStatus.includes('accepted') ||
+    tStatus.includes('assigned')
+  );
 }
 
 /**
