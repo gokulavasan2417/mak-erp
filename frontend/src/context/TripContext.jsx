@@ -256,8 +256,9 @@ export function TripProvider({ children }) {
     };
   }, []);
 
-  // Reflect live vehicles/cars, bookings, and drivers from connected database
-  useEffect(() => {
+  // Reflect live vehicles/cars, bookings, drivers, payments, and invoices from connected database
+  const syncRemoteData = useCallback(() => {
+    // 1. Vehicles
     vehicleService
       .getAll()
       .then((res) => {
@@ -325,6 +326,7 @@ export function TripProvider({ children }) {
       })
       .catch(() => {});
 
+    // 2. Bookings (Multi-Device Live Sync)
     bookingService
       .getAll()
       .then((res) => {
@@ -344,25 +346,52 @@ export function TripProvider({ children }) {
           seedSequenceIfHigher('BK', maxBookingNum);
 
           setBookings((prev) => {
-            const localMap = new Map((prev || []).map((b) => [b.id || b.bookingNumber || b.refId || b._id, b]));
+            const localMap = new Map();
+            (prev || []).forEach((b) => {
+              if (b.id) localMap.set(String(b.id), b);
+              if (b.bookingNumber) localMap.set(String(b.bookingNumber), b);
+              if (b.refId) localMap.set(String(b.refId), b);
+              if (b._id) localMap.set(String(b._id), b);
+            });
+
             const merged = res.data.map((remote) => {
-              const bKey = remote.id || remote.bookingNumber || remote.refId || remote._id;
-              const local = localMap.get(bKey);
-              if (local) localMap.delete(bKey);
-              const resolvedCustomerName = String(remote.customerName || remote.fullName || remote.name || (local && (local.customerName || local.fullName)) || '').trim() || 'Valued Guest';
-              const resolvedCustomerPhone = String(remote.customerPhone || remote.mobileNumber || remote.phone || (local && (local.customerPhone || local.mobileNumber)) || '').trim();
-              const resolvedBookingNumber = String(remote.bookingNumber || remote.refId || remote.id || (local && (local.bookingNumber || local.refId)) || '').trim();
+              const local =
+                localMap.get(String(remote.id || '')) ||
+                localMap.get(String(remote.bookingNumber || '')) ||
+                localMap.get(String(remote.refId || '')) ||
+                localMap.get(String(remote._id || ''));
+
+              if (local) {
+                if (local.id) localMap.delete(String(local.id));
+                if (local.bookingNumber) localMap.delete(String(local.bookingNumber));
+                if (local.refId) localMap.delete(String(local.refId));
+                if (local._id) localMap.delete(String(local._id));
+              }
+
+              const resolvedCustomerName = String(remote.customerName || remote.fullName || remote.name || local?.customerName || local?.fullName || '').trim() || 'Valued Guest';
+              const resolvedCustomerPhone = String(remote.customerPhone || remote.mobileNumber || remote.phone || local?.customerPhone || local?.mobileNumber || '').trim();
+              const resolvedBookingNumber = String(remote.bookingNumber || remote.refId || remote.id || local?.bookingNumber || local?.refId || '').trim();
               const base = local ? { ...local, ...remote } : remote;
               const rawCat = remote.bookingCategory || remote.bookingType || local?.bookingCategory || local?.bookingType || base.category || base.bookingCategory || base.bookingType;
               const cleanCat = sanitizeBookingCategory(rawCat, base);
-              const tot = parseFloat(base.totalAmount || base.pricing || base.fare || 0) || 0;
-              const adv = parseFloat(base.amountPaid !== undefined ? base.amountPaid : (base.advancePaid || 0)) || 0;
-              const bal = base.balanceAmount !== undefined && base.balanceAmount !== null && !isNaN(Number(base.balanceAmount))
-                ? parseFloat(base.balanceAmount)
-                : (base.balanceDue !== undefined && base.balanceDue !== null && !isNaN(Number(base.balanceDue))
-                    ? parseFloat(base.balanceDue)
-                    : Math.max(0, tot - adv));
-              const rawPayStatus = String(base.paymentStatus || '').trim().toLowerCase();
+
+              // REMOTE MONGODB ATLAS AMOUNTS ARE AUTHORITATIVE OVER STALE LOCAL CACHE
+              const tot = parseFloat(remote.totalAmount || remote.pricing || remote.fare || remote.totalFare || local?.totalAmount || local?.pricing || 0) || 0;
+              const remotePaid = remote.amountPaid !== undefined && remote.amountPaid !== null ? remote.amountPaid : remote.advancePaid;
+              const localPaid = local?.amountPaid !== undefined ? local.amountPaid : local?.advancePaid;
+              const adv = parseFloat(remotePaid !== undefined && remotePaid !== null ? remotePaid : (localPaid || 0)) || 0;
+
+              const remoteBal = remote.balanceDue !== undefined && remote.balanceDue !== null
+                ? remote.balanceDue
+                : (remote.balanceAmount !== undefined && remote.balanceAmount !== null ? remote.balanceAmount : undefined);
+              const localBal = local?.balanceAmount !== undefined && local?.balanceAmount !== null
+                ? local.balanceAmount
+                : local?.balanceDue;
+              const bal = remoteBal !== undefined
+                ? parseFloat(remoteBal)
+                : (localBal !== undefined ? parseFloat(localBal) : Math.max(0, tot - adv));
+
+              const rawPayStatus = String(remote.paymentStatus || local?.paymentStatus || '').trim().toLowerCase();
               const isSettled = (tot > 0 && bal <= 0) || rawPayStatus === 'paid';
               const canonicalPayStatus = isSettled ? 'Paid' : adv > 0 ? 'Partial' : 'Pending';
 
@@ -373,6 +402,9 @@ export function TripProvider({ children }) {
                 category: cleanCat,
                 tripType: base.tripType && !String(base.tripType).toLowerCase().includes('one way') ? base.tripType : cleanCat,
                 totalAmount: tot,
+                pricing: tot,
+                fare: tot,
+                totalFare: tot,
                 advancePaid: adv,
                 amountPaid: adv,
                 balanceAmount: bal,
@@ -442,6 +474,7 @@ export function TripProvider({ children }) {
       })
       .catch(() => {});
 
+    // 3. Drivers
     driverService
       .getAll()
       .then((res) => {
@@ -451,7 +484,7 @@ export function TripProvider({ children }) {
       })
       .catch(() => {});
 
-    // Live sync Payments from MongoDB Atlas
+    // 4. Payments
     if (financeService?.getPayments) {
       financeService
         .getPayments()
@@ -488,7 +521,7 @@ export function TripProvider({ children }) {
         .catch(() => {});
     }
 
-    // Live sync Expenses from MongoDB Atlas
+    // 5. Expenses
     if (financeService?.getExpenses) {
       financeService
         .getExpenses()
@@ -505,7 +538,6 @@ export function TripProvider({ children }) {
                 const k = (le.id || le.expenseId || le._id || '').toString();
                 if (k && !remoteMap.has(k)) {
                   merged.push(le);
-                  // Auto-sync unpersisted local expense to Atlas
                   financeService.createExpense({
                     category: le.category,
                     amount: le.amount,
@@ -528,7 +560,7 @@ export function TripProvider({ children }) {
         .catch(() => {});
     }
 
-    // Live sync Invoices from MongoDB Atlas
+    // 6. Invoices
     if (financeService?.getInvoices) {
       financeService
         .getInvoices()
@@ -553,7 +585,34 @@ export function TripProvider({ children }) {
         })
         .catch(() => {});
     }
-  }, [isBackendConnected]);
+  }, []);
+
+  // Multi-Device Polling & Window Focus Auto-Refresh
+  useEffect(() => {
+    syncRemoteData();
+
+    // Background interval: poll every 8 seconds for multi-device live sync
+    const pollTimer = setInterval(() => {
+      syncRemoteData();
+    }, 8000);
+
+    // Instant re-sync when switching tabs or focusing desktop window
+    const handleFocus = () => syncRemoteData();
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        syncRemoteData();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      clearInterval(pollTimer);
+      window.removeEventListener('focus', handleFocus);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [syncRemoteData, isBackendConnected]);
 
   // 1. Shared Bookings
   const [bookings, setBookings] = useState(() => {

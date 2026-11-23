@@ -1157,7 +1157,9 @@ export const financeController = {
         if (associatedBooking && (newPayment.status === 'captured' || newPayment.status === 'paid')) {
           const fare = Number(associatedBooking.pricing || associatedBooking.totalFare || associatedBooking.fare || associatedBooking.totalAmount || 0);
           const newAdvance = (Number(associatedBooking.advancePaid) || 0) + cleanAmount;
+          associatedBooking.totalAmount = fare;
           associatedBooking.advancePaid = newAdvance;
+          associatedBooking.amountPaid = newAdvance;
           associatedBooking.balanceDue = Math.max(0, fare - newAdvance);
           associatedBooking.balanceAmount = associatedBooking.balanceDue;
 
