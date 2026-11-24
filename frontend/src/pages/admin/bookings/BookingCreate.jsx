@@ -1,6 +1,6 @@
 // MAK Tours & Travels ERP - Create Travel Booking Form
 // CRITICAL: ONE WAY TRIP MUST NOT EXIST ANYWHERE IN THIS APPLICATION.
-import React, { useState } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, Calendar, Save, CheckCircle2, AlertCircle } from 'lucide-react';
 import { Card, CardHeader, CardBody } from '../../../components/ui/Card';
@@ -8,11 +8,13 @@ import { Button } from '../../../components/ui/Button';
 import { useAdminData } from '../../../context/AdminDataContext';
 import { useToast } from '../../../context/ToastContext';
 import { bookingCategories, paymentStatuses } from '../../../data';
+import { getDriverLeaveConflict, formatDateDMY, normalizeDate } from '../../../utils/dateUtils';
 
 export function BookingCreate() {
   const navigate = useNavigate();
   const toast = useToast();
-  const { addBooking, customers, tourPackages, vehicles, drivers } = useAdminData();
+  const { addBooking, customers, tourPackages, vehicles, drivers, driverLeaves = [], driverLeaveRequests = [] } = useAdminData();
+  const allDriverLeaves = driverLeaves.length > 0 ? driverLeaves : driverLeaveRequests;
 
   // Today's local date string (YYYY-MM-DD)
   const getTodayStr = () => {
@@ -140,20 +142,64 @@ export function BookingCreate() {
     setVendorPayableAmount(Math.round(totalAmount * (num / 100)));
   };
 
-  const handleDriverChange = (driverId) => {
-    setSelectedDriverId(driverId);
-    if (driverId) {
-      const chosen = drivers.find(
-        (d) => d.id === driverId || d._id === driverId || d.driverId === driverId || d.driverBadgeId === driverId
-      );
-      if (chosen) {
-        const rate =
-          chosen.perTripRate ||
-          chosen.tripRate ||
-          chosen.salaryStructure?.perTripRate ||
-          1500;
-        setDriverCompensationAmount(Number(rate));
+  // Evaluate driver availability and leave conflicts against selected journeyDate and returnDate
+  const { availableDrivers, onLeaveDrivers } = useMemo(() => {
+    const avail = [];
+    const onLeave = [];
+
+    (drivers || []).forEach((d) => {
+      const conflict = getDriverLeaveConflict(d, journeyDate, returnDate || journeyDate, allDriverLeaves);
+      if (conflict) {
+        onLeave.push({ ...d, leaveConflict: conflict });
+      } else {
+        avail.push(d);
       }
+    });
+
+    return { availableDrivers: avail, onLeaveDrivers: onLeave };
+  }, [drivers, journeyDate, returnDate, allDriverLeaves]);
+
+  // Check if currently selected driver has a leave conflict for the journey date
+  const selectedDriverLeaveConflict = useMemo(() => {
+    if (!selectedDriverId || !journeyDate) return null;
+    const chosen = (drivers || []).find(
+      (d) => d.id === selectedDriverId || d._id === selectedDriverId || d.driverId === selectedDriverId || d.driverBadgeId === selectedDriverId
+    );
+    if (!chosen) return null;
+    return getDriverLeaveConflict(chosen, journeyDate, returnDate || journeyDate, allDriverLeaves);
+  }, [selectedDriverId, journeyDate, returnDate, drivers, allDriverLeaves]);
+
+  // If journey date changes and current driver is on leave, automatically clear driver selection
+  useEffect(() => {
+    if (selectedDriverLeaveConflict) {
+      setSelectedDriverId('');
+      toast.warning(`Driver is on leave for ${formatDateDMY(journeyDate)}. Driver assignment was cleared.`);
+    }
+  }, [selectedDriverLeaveConflict, journeyDate]);
+
+  const handleDriverChange = (driverId) => {
+    if (!driverId) {
+      setSelectedDriverId('');
+      return;
+    }
+    const chosen = (drivers || []).find(
+      (d) => d.id === driverId || d._id === driverId || d.driverId === driverId || d.driverBadgeId === driverId
+    );
+    if (chosen) {
+      const conflict = getDriverLeaveConflict(chosen, journeyDate, returnDate || journeyDate, allDriverLeaves);
+      if (conflict) {
+        toast.error(`Cannot select ${chosen.name || chosen.fullName}: Driver is on leave on ${formatDateDMY(journeyDate)} (${conflict.description}).`);
+        setSelectedDriverId('');
+        return;
+      }
+
+      setSelectedDriverId(driverId);
+      const rate =
+        chosen.perTripRate ||
+        chosen.tripRate ||
+        chosen.salaryStructure?.perTripRate ||
+        1500;
+      setDriverCompensationAmount(Number(rate));
     }
   };
 
@@ -271,6 +317,11 @@ export function BookingCreate() {
     );
     let assignedDriverObj = null;
     if (selectedDriver) {
+      const conflict = getDriverLeaveConflict(selectedDriver, journeyDate, returnDate || journeyDate, allDriverLeaves);
+      if (conflict) {
+        toast.error(`Cannot create booking: Driver ${selectedDriver.name || selectedDriver.fullName} is on leave on the trip start date (${formatDateDMY(journeyDate)}). Please choose another driver or assign later.`);
+        return;
+      }
       assignedDriverObj = {
         id: selectedDriver.id || selectedDriver._id || selectedDriver.driverBadgeId,
         name: selectedDriver.name || selectedDriver.fullName,
@@ -830,9 +881,14 @@ export function BookingCreate() {
 
               {/* Driver Selection */}
               <div>
-                <label style={{ display: 'block', fontSize: '0.8125rem', fontWeight: 600, marginBottom: '0.375rem' }}>
-                  Assign Driver
-                </label>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.375rem' }}>
+                  <label style={{ fontSize: '0.8125rem', fontWeight: 600 }}>
+                    Assign Driver
+                  </label>
+                  <span style={{ fontSize: '0.72rem', color: '#64748b' }}>
+                    Trip Start Date: <strong style={{ color: '#0f172a' }}>{formatDateDMY(journeyDate)}</strong>
+                  </span>
+                </div>
                 <select
                   value={selectedDriverId}
                   onChange={(e) => handleDriverChange(e.target.value)}
@@ -846,16 +902,48 @@ export function BookingCreate() {
                   }}
                 >
                   <option value="">-- Assign Later --</option>
-                  {drivers.map((d) => {
-                    const drvVal = d.id || d._id || d.driverBadgeId;
-                    const tripRate = d.perTripRate || d.tripRate || d.salaryStructure?.perTripRate || 1500;
-                    return (
-                      <option key={drvVal} value={drvVal}>
-                        {d.name || d.fullName} ({d.phone}) • ₹{tripRate.toLocaleString('en-IN')}/trip - {d.dutyStatus || d.status || 'Available'}
-                      </option>
-                    );
-                  })}
+
+                  <optgroup label="Available Drivers (Ready for Duty)">
+                    {availableDrivers.map((d) => {
+                      const drvVal = d.id || d._id || d.driverBadgeId;
+                      const tripRate = d.perTripRate || d.tripRate || d.salaryStructure?.perTripRate || 1500;
+                      return (
+                        <option key={drvVal} value={drvVal}>
+                          ✓ {d.name || d.fullName} ({d.phone}) • ₹{tripRate.toLocaleString('en-IN')}/trip - Available
+                        </option>
+                      );
+                    })}
+                  </optgroup>
+
+                  {onLeaveDrivers.length > 0 && (
+                    <optgroup label="Unavailable Drivers (On Leave - Cannot Assign on Trip Date)">
+                      {onLeaveDrivers.map((d) => {
+                        const drvVal = d.id || d._id || d.driverBadgeId;
+                        const leaveInfo = d.leaveConflict;
+                        return (
+                          <option
+                            key={drvVal}
+                            value={drvVal}
+                            disabled
+                            style={{ color: '#94a3b8', backgroundColor: '#fef2f2' }}
+                          >
+                            ⛔ {d.name || d.fullName} ({d.phone}) • [ON LEAVE: {formatDateDMY(leaveInfo.startDate)} to {formatDateDMY(leaveInfo.endDate)}] - Cannot Assign
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  )}
                 </select>
+
+                {/* Driver on Leave Notice Alert */}
+                {onLeaveDrivers.length > 0 && (
+                  <div style={{ marginTop: '0.4rem', padding: '0.45rem 0.75rem', backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '6px', fontSize: '0.73rem', color: '#9a3412', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <AlertCircle size={15} style={{ color: '#ea580c', flexShrink: 0 }} />
+                    <span>
+                      <strong>{onLeaveDrivers.map((d) => d.name || d.fullName).join(', ')}</strong> {onLeaveDrivers.length === 1 ? 'is' : 'are'} on leave on trip start date (<strong>{formatDateDMY(journeyDate)}</strong>) and cannot be assigned.
+                    </span>
+                  </div>
+                )}
               </div>
 
               {/* Driver Trip Pay (Editable) */}

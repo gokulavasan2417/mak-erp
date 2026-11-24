@@ -1619,6 +1619,7 @@ export function AdminDataProvider({ children }) {
         // Staff Attendance & Leaves
         staffAttendance,
         staffLeaveRequests,
+        driverLeaves: driverLeaves || [],
         driverLeaveRequests: driverLeaves || [],
         requestDriverLeave,
         approveDriverLeave,

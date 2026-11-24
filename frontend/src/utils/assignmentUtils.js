@@ -4,7 +4,7 @@
 // 2. Vendor Partner vehicles are secondary and should only be assigned if Company-Owned vehicles are unavailable (or if explicitly selected).
 // 3. Driver Availability checks ensure no overlapping assignments or leave conflicts.
 
-import { isVehicleAvailable, isDriverAvailable } from './dateUtils';
+import { isVehicleAvailable, isDriverAvailable, getDriverLeaveConflict } from './dateUtils';
 
 /**
  * Categorize and sort vehicles for a specific booking
@@ -126,9 +126,10 @@ export function getVehiclesForBooking(booking, vehicles = [], bookings = []) {
  * @param {Array} drivers - All drivers array
  * @param {Array} assignments - Active assignments
  * @param {Array} bookings - All bookings
+ * @param {Array} driverLeaves - All driver leave requests
  * @returns {Object} Available drivers, unavailable drivers, and recommended driver
  */
-export function getDriversForBooking(booking, drivers = [], assignments = [], bookings = []) {
+export function getDriversForBooking(booking, drivers = [], assignments = [], bookings = [], driverLeaves = []) {
   if (!booking) {
     return { availableDrivers: [], unavailableDrivers: [], recommendedDriverId: null };
   }
@@ -140,16 +141,23 @@ export function getDriversForBooking(booking, drivers = [], assignments = [], bo
   const unavailableDrivers = [];
 
   drivers.forEach((drv) => {
-    const isDutyAvailable = drv.status === 'Active' && drv.dutyStatus !== 'On Leave' && drv.dutyStatus !== 'Suspended';
-    const check = isDriverAvailable(drv.id, jDate, rDate, drivers, assignments, bookings, booking.id);
-    const isAvail = isDutyAvailable && check.available;
+    const leaveConflict = getDriverLeaveConflict(drv, jDate, rDate, driverLeaves);
+    const isDutyAvailable = drv.status === 'Active' && drv.dutyStatus !== 'Suspended' && !leaveConflict;
+    const check = isDriverAvailable(drv.id, jDate, rDate, drivers, assignments, bookings, booking.id, driverLeaves);
+    const isAvail = isDutyAvailable && check.available && !leaveConflict;
+
+    const unavailabilityReason = leaveConflict
+      ? leaveConflict.description
+      : (!isDutyAvailable
+          ? `Driver status: ${drv.dutyStatus || drv.status}`
+          : check.reason || 'Committed on another assignment');
 
     const item = {
       ...drv,
       isAvailable: isAvail,
-      unavailabilityReason: !isDutyAvailable
-        ? `Driver status: ${drv.dutyStatus || drv.status}`
-        : check.reason || 'Committed on another assignment'
+      onLeave: Boolean(leaveConflict),
+      leaveConflict,
+      unavailabilityReason
     };
 
     if (isAvail) {

@@ -1548,20 +1548,7 @@ export function TripProvider({ children }) {
 
   // Availability helpers
   const isDriverAvailable = useCallback((driverId, start, end, excludeBookingId = null) => {
-    // Check approved planned leaves for this driver
-    const s = normalizeDate(start);
-    const e = normalizeDate(end || start);
-    const hasLeave = (driverLeaves || []).some((l) => {
-      if (l.driverId !== driverId && l.driverBadge !== driverId) return false;
-      if (l.status !== 'Approved') return false;
-      const lStart = normalizeDate(l.approvedStartDate || l.startDate);
-      const lEnd = normalizeDate(l.approvedEndDate || l.endDate || l.approvedStartDate || l.startDate);
-      return datesOverlap(s, e, lStart, lEnd);
-    });
-    if (hasLeave) {
-      return { available: false, reason: 'Driver has approved planned leave for the requested journey dates.' };
-    }
-    return checkDriverAvailability(driverId, start, end, drivers, assignments, bookings, excludeBookingId);
+    return checkDriverAvailability(driverId, start, end, drivers, assignments, bookings, excludeBookingId, driverLeaves);
   }, [driverLeaves, drivers, assignments, bookings]);
 
   const isVehicleAvailable = useCallback((vehicleId, start, end, excludeBookingId = null) => {
@@ -1987,7 +1974,7 @@ export function TripProvider({ children }) {
       return false;
     }
 
-    const drvCheck = checkDriverAvailability(driverObj.id, bJourney, bReturn, drivers, assignments, bookings, booking.id);
+    const drvCheck = checkDriverAvailability(driverObj.id, bJourney, bReturn, drivers, assignments, bookings, booking.id, driverLeaves);
     if (!drvCheck.available) {
       toast.error(drvCheck.reason);
       return false;

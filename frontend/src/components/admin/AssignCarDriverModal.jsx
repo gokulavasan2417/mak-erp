@@ -29,6 +29,7 @@ import { Badge } from '../ui/Badge';
 import { useAdminData } from '../../context/AdminDataContext';
 import { useToast } from '../../context/ToastContext';
 import { getVehiclesForBooking, getDriversForBooking } from '../../utils/assignmentUtils';
+import { getDriverLeaveConflict, formatDateDMY } from '../../utils/dateUtils';
 
 export function AssignCarDriverModal({
   isOpen,
@@ -41,10 +42,13 @@ export function AssignCarDriverModal({
     vehicles = [],
     drivers = [],
     bookings = [],
+    driverLeaves = [],
+    driverLeaveRequests = [],
     confirmTripAssignment,
     assignVehicle,
     settings
   } = useAdminData();
+  const allDriverLeaves = driverLeaves.length > 0 ? driverLeaves : driverLeaveRequests;
 
   const safeBooking = useMemo(() => {
     if (!booking) return null;
@@ -94,8 +98,8 @@ export function AssignCarDriverModal({
 
   // Compute eligible drivers for this booking
   const driverAnalysis = useMemo(() => {
-    return getDriversForBooking(safeBooking, drivers, [], bookings);
-  }, [safeBooking, drivers, bookings]);
+    return getDriversForBooking(safeBooking, drivers, [], bookings, allDriverLeaves);
+  }, [safeBooking, drivers, bookings, allDriverLeaves]);
 
   // Pre-select recommended vehicle and driver when modal opens or booking changes
   useEffect(() => {
@@ -115,7 +119,13 @@ export function AssignCarDriverModal({
       const currentDrvId = safeBooking.driverId || safeBooking.assignedDriver?.id;
       let targetDrvId = '';
       if (currentDrvId) {
-        targetDrvId = currentDrvId;
+        const existingDriver = drivers.find((d) => d.id === currentDrvId || d.driverId === currentDrvId || d.driverBadgeId === currentDrvId);
+        const leaveConflict = existingDriver ? getDriverLeaveConflict(existingDriver, safeBooking.journeyDate, safeBooking.returnDate || safeBooking.journeyDate, allDriverLeaves) : null;
+        if (!leaveConflict) {
+          targetDrvId = currentDrvId;
+        } else if (driverAnalysis.recommendedDriverId) {
+          targetDrvId = driverAnalysis.recommendedDriverId;
+        }
       } else if (driverAnalysis.recommendedDriverId) {
         targetDrvId = driverAnalysis.recommendedDriverId;
       }
@@ -156,19 +166,27 @@ export function AssignCarDriverModal({
   const totalMatchingCount = matchingCompanyCount + matchingVendorCount;
 
   const handleDriverChange = (newDriverId) => {
-    setSelectedDriverId(newDriverId);
-    if (newDriverId) {
-      const chosen = drivers.find(
-        (d) => d.id === newDriverId || d.driverId === newDriverId || d.driverBadgeId === newDriverId
-      );
-      if (chosen) {
-        const rate =
-          chosen.perTripRate ||
-          chosen.tripRate ||
-          chosen.salaryStructure?.perTripRate ||
-          (safeBooking.bookingCategory === 'Tour Package' ? defaultTourPackagePay : defaultRoundTripPay);
-        setDriverPay(Number(rate));
+    if (!newDriverId) {
+      setSelectedDriverId('');
+      return;
+    }
+    const chosen = drivers.find(
+      (d) => d.id === newDriverId || d.driverId === newDriverId || d.driverBadgeId === newDriverId
+    );
+    if (chosen) {
+      const conflict = getDriverLeaveConflict(chosen, safeBooking.journeyDate, safeBooking.returnDate || safeBooking.journeyDate, allDriverLeaves);
+      if (conflict) {
+        toast.error(`Cannot assign ${chosen.name || chosen.fullName}: Driver is on leave on trip date (${conflict.description}).`);
+        setSelectedDriverId('');
+        return;
       }
+      setSelectedDriverId(newDriverId);
+      const rate =
+        chosen.perTripRate ||
+        chosen.tripRate ||
+        chosen.salaryStructure?.perTripRate ||
+        (safeBooking.bookingCategory === 'Tour Package' ? defaultTourPackagePay : defaultRoundTripPay);
+      setDriverPay(Number(rate));
     }
   };
 
@@ -183,6 +201,14 @@ export function AssignCarDriverModal({
     if (!selectedDriverId) {
       toast.error('Please select an available driver from the dropdown');
       return;
+    }
+
+    if (selectedDriver) {
+      const conflict = getDriverLeaveConflict(selectedDriver, safeBooking.journeyDate, safeBooking.returnDate || safeBooking.journeyDate, allDriverLeaves);
+      if (conflict) {
+        toast.error(`Cannot dispatch booking: Driver ${selectedDriver.name || selectedDriver.fullName} is on leave on the trip start date (${formatDateDMY(safeBooking.journeyDate)}). Please select another driver.`);
+        return;
+      }
     }
 
     setIsSubmitting(true);
@@ -490,6 +516,16 @@ export function AssignCarDriverModal({
               </optgroup>
             )}
           </select>
+
+          {/* Driver on Leave Notice */}
+          {driverAnalysis.unavailableDrivers.some((d) => d.onLeave) && (
+            <div style={{ marginTop: '0.25rem', padding: '0.45rem 0.75rem', backgroundColor: '#fff7ed', border: '1px solid #fed7aa', borderRadius: '6px', fontSize: '0.73rem', color: '#9a3412', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <AlertTriangle size={15} style={{ color: '#ea580c', flexShrink: 0 }} />
+              <span>
+                <strong>{driverAnalysis.unavailableDrivers.filter((d) => d.onLeave).map((d) => d.name).join(', ')}</strong> {driverAnalysis.unavailableDrivers.filter((d) => d.onLeave).length === 1 ? 'is' : 'are'} on approved leave on the journey date (<strong>{formatDateDMY(safeBooking.journeyDate)}</strong>) and cannot be assigned.
+              </span>
+            </div>
+          )}
 
           {/* Selected Driver Preview Card */}
           {selectedDriver && (

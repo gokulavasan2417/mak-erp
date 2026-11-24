@@ -242,14 +242,137 @@ export function getDaysBetween(startDate, endDate) {
 }
 
 /**
- * Find conflicting assignments or bookings for a driver in a date range.
+ * Check if a leave record belongs to a given driver (matches ID, driverBadge, driverCode, or name).
  */
-export function getDriverConflicts(driverId, startDate, endDate, assignments = [], bookings = [], excludeBookingId = null) {
+export function isSameDriver(leave, driverOrId) {
+  if (!leave || !driverOrId) return false;
+
+  const dObj = typeof driverOrId === 'object' ? driverOrId : { id: driverOrId };
+  const dIds = [
+    dObj.id,
+    dObj.driverId,
+    dObj.driverBadgeId,
+    dObj.badgeId,
+    dObj._id,
+    typeof driverOrId === 'string' ? driverOrId : null
+  ]
+    .filter(Boolean)
+    .map((v) => String(v).trim().toLowerCase());
+
+  const lIds = [
+    leave.driverId,
+    leave.driverBadge,
+    leave.driverBadgeId,
+    leave.driverCode,
+    leave.empId
+  ]
+    .filter(Boolean)
+    .map((v) => String(v).trim().toLowerCase());
+
+  // Check ID matching
+  for (const did of dIds) {
+    for (const lid of lIds) {
+      if (did === lid || did.includes(lid) || lid.includes(did)) {
+        return true;
+      }
+    }
+  }
+
+  // Check Name matching (e.g. Murugan / Murugan S)
+  const dNames = [dObj.name, dObj.fullName].filter(Boolean).map((v) => String(v).trim().toLowerCase());
+  const lNames = [leave.driverName, leave.name, leave.fullName].filter(Boolean).map((v) => String(v).trim().toLowerCase());
+
+  for (const dn of dNames) {
+    for (const ln of lNames) {
+      if (dn === ln || dn.includes(ln) || ln.includes(dn)) {
+        return true;
+      }
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Check if a driver has an active, applied, or approved leave conflict for a date range.
+ * Returns the conflict details object if conflicting, or null if available.
+ */
+export function getDriverLeaveConflict(driverOrId, startDate, endDate, driverLeaves = []) {
+  if (!driverOrId || !startDate) return null;
+  const s = normalizeDate(startDate);
+  const e = normalizeDate(endDate || startDate);
+  if (!s) return null;
+
+  let list = Array.isArray(driverLeaves) && driverLeaves.length > 0 ? driverLeaves : [];
+  if (list.length === 0 && typeof window !== 'undefined' && window.localStorage) {
+    try {
+      const raw =
+        localStorage.getItem('mak_driver_leaves_v10_atlas') ||
+        localStorage.getItem('mak_driver_leaves_v7');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed)) list = parsed;
+      }
+    } catch {
+      // fallback if storage unavailable
+    }
+  }
+
+  for (const l of list) {
+    if (!l) continue;
+    // Cancelled or rejected leaves do not block duty
+    const status = String(l.status || '').trim();
+    const isCancelled = status.toLowerCase().includes('cancel') || status.toLowerCase().includes('reject');
+    if (isCancelled) continue;
+
+    if (!isSameDriver(l, driverOrId)) continue;
+
+    const lStart = normalizeDate(l.approvedStartDate || l.startDate);
+    const lEnd = normalizeDate(l.approvedEndDate || l.endDate || l.approvedStartDate || l.startDate);
+    if (!lStart) continue;
+
+    if (datesOverlap(s, e, lStart, lEnd)) {
+      const isApproved = status.toLowerCase() === 'approved';
+      return {
+        onLeave: true,
+        leaveId: l.id,
+        status: l.status || (isApproved ? 'Approved' : 'Under Review'),
+        startDate: lStart,
+        endDate: lEnd,
+        reason: l.reason || 'Personal Reason',
+        approvedDays: l.approvedDays || l.totalDays || 1,
+        description: isApproved
+          ? `Driver is ON LEAVE from ${formatDateDMY(lStart)} to ${formatDateDMY(lEnd)} (${l.reason || 'Approved Planned Leave'})`
+          : `Driver applied LEAVE for ${formatDateDMY(lStart)} to ${formatDateDMY(lEnd)} (${l.reason || 'Leave Under Review'})`
+      };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Find conflicting assignments, bookings, or approved leaves for a driver in a date range.
+ */
+export function getDriverConflicts(driverId, startDate, endDate, assignments = [], bookings = [], excludeBookingId = null, driverLeaves = []) {
   if (!driverId || !startDate) return [];
   const s = normalizeDate(startDate);
   const e = normalizeDate(endDate || startDate);
 
   const conflicts = [];
+
+  // Check planned / approved leave
+  const leaveConflict = getDriverLeaveConflict(driverId, startDate, endDate, driverLeaves);
+  if (leaveConflict) {
+    conflicts.push({
+      source: 'Leave',
+      id: leaveConflict.leaveId,
+      status: leaveConflict.status,
+      startDate: leaveConflict.startDate,
+      endDate: leaveConflict.endDate,
+      description: leaveConflict.description
+    });
+  }
 
   // Check assignments
   if (Array.isArray(assignments)) {
@@ -304,31 +427,52 @@ export function getDriverConflicts(driverId, startDate, endDate, assignments = [
 
 /**
  * Check if a driver is available for a date range.
- * Considers approval status, active status, duty status, and date conflicts.
+ * Considers approval status, active status, duty status, date conflicts, and planned leaves.
  */
-export function isDriverAvailable(driverId, startDate, endDate, drivers = [], assignments = [], bookings = [], excludeBookingId = null) {
+export function isDriverAvailable(driverId, startDate, endDate, drivers = [], assignments = [], bookings = [], excludeBookingId = null, driverLeaves = []) {
   if (!driverId) return { available: false, reason: 'No driver specified' };
 
-  const driver = drivers.find((d) => d.id === driverId || d.driverId === driverId);
-  if (!driver) {
-    return { available: false, reason: 'Driver record not found' };
+  const driver = drivers.find((d) => d.id === driverId || d.driverId === driverId || d.driverBadgeId === driverId || d._id === driverId);
+  const targetDriver = driver || (typeof driverId === 'object' ? driverId : { id: driverId });
+
+  // 1. Check approval and active status
+  if (targetDriver.approvalStatus && targetDriver.approvalStatus !== 'Approved') {
+    return { available: false, reason: `Driver application status is "${targetDriver.approvalStatus}" (Requires Approved)` };
+  }
+  if (targetDriver.status && targetDriver.status !== 'Active' && targetDriver.status !== 'Available') {
+    return { available: false, reason: `Driver status is "${targetDriver.status}" (Requires Active)` };
   }
 
-  // Check approval and active status
-  if (driver.approvalStatus && driver.approvalStatus !== 'Approved') {
-    return { available: false, reason: `Driver application status is "${driver.approvalStatus}" (Requires Approved)` };
-  }
-  if (driver.status && driver.status !== 'Active') {
-    return { available: false, reason: `Driver status is "${driver.status}" (Requires Active)` };
+  // 2. Check planned / approved leave for this date range
+  const leaveConflict = getDriverLeaveConflict(targetDriver, startDate, endDate, driverLeaves);
+  if (leaveConflict) {
+    return {
+      available: false,
+      onLeave: true,
+      reason: `Driver is on leave for the requested journey date (${leaveConflict.description})`,
+      leaveConflict,
+      conflicts: [
+        {
+          source: 'Leave',
+          id: leaveConflict.leaveId,
+          status: leaveConflict.status,
+          startDate: leaveConflict.startDate,
+          endDate: leaveConflict.endDate,
+          description: leaveConflict.description
+        }
+      ]
+    };
   }
 
-  // Check duty status
-  if (['On Leave', 'Suspended', 'Unavailable'].includes(driver.dutyStatus)) {
-    return { available: false, reason: `Driver is currently ${driver.dutyStatus}` };
+  // 3. Check current duty status if journey starts today
+  const todayYMD = normalizeDate(new Date());
+  const s = normalizeDate(startDate);
+  if (s === todayYMD && ['On Leave', 'Suspended', 'Unavailable'].includes(targetDriver.dutyStatus)) {
+    return { available: false, reason: `Driver is currently ${targetDriver.dutyStatus}` };
   }
 
-  // Check schedule conflicts
-  const conflicts = getDriverConflicts(driverId, startDate, endDate, assignments, bookings, excludeBookingId);
+  // 4. Check schedule conflicts
+  const conflicts = getDriverConflicts(driverId, startDate, endDate, assignments, bookings, excludeBookingId, driverLeaves);
   if (conflicts.length > 0) {
     return {
       available: false,
