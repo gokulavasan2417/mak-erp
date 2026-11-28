@@ -38,7 +38,7 @@ All communication between the two backends is secured via:
 Default Key (configurable in `.env`):
 ```env
 MAK_TAXI_API_KEY=mak_taxi_sec_993847a82b01c3d4
-MAK_TAXI_WEBHOOK_URL=https://api.maktaxi.com/api/webhooks/journey-erp
+MAK_TAXI_WEBHOOK_URL=https://vendorapi.makjourney.com/api/webhooks/journey-erp
 MAK_TAXI_WEBHOOK_SECRET=mak_taxi_sec_993847a82b01c3d4
 ```
 
@@ -120,7 +120,7 @@ When the MAK Journey ERP admin assigns an outstation booking to a vendor (either
 
 ### Your MAK TAXI Webhook Endpoint:
 Configured via `MAK_TAXI_WEBHOOK_URL` in ERP `.env`.  
-*Example:* `https://api.maktaxi.com/api/webhooks/journey-erp`
+*Production Webhook:* `https://vendorapi.makjourney.com/api/webhooks/journey-erp`
 
 ### Webhook Request Headers Sent by ERP:
 ```http
