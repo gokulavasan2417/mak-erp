@@ -4309,7 +4309,7 @@ export function TripProvider({ children }) {
       console.error('Error removing vehicle from database:', err);
       const isNetworkErr = err.message?.includes('Failed to fetch') || err.message?.includes('Network connection failed');
       if (isNetworkErr) {
-        toast.error('Cannot connect to backend API server. Please ensure the backend is running on http://localhost:5000.');
+        toast.error('Cannot connect to backend API server. Please ensure the backend service is running and accessible.');
       } else {
         toast.error(err?.data?.message || err?.message || 'Failed to remove vehicle from database.');
       }

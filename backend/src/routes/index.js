@@ -19,6 +19,7 @@ import driverSettlementRoutes from './driverSettlementRoutes.js';
 import cashBankRoutes from './cashBankRoutes.js';
 import reportRoutes from './reportRoutes.js';
 import integrationRoutes from './integrationRoutes.js';
+import settingRoutes from './settingRoutes.js';
 
 const router = Router();
 
@@ -27,6 +28,7 @@ router.use('/super-admin', superAdminRoutes);
 router.use('/bookings', bookingRoutes);
 router.use('/trips', tripRoutes);
 router.use('/drivers', driverRoutes);
+router.use('/driver', driverRoutes); // Alias for legacy/mobile paths
 router.use('/vehicles', vehicleRoutes);
 router.use('/vendors', vendorRoutes);
 router.use('/customers', customerRoutes);
@@ -42,5 +44,6 @@ router.use('/reports', reportRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/tour-packages', tourPackageRoutes);
 router.use('/integrations', integrationRoutes);
+router.use('/settings', settingRoutes);
 
 export default router;

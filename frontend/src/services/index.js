@@ -1,5 +1,5 @@
 // MAK Tours & Travels ERP - Master Services Index
-export { apiClient, ApiError } from './apiClient';
+export { apiClient, axiosInstance, ApiError, RAW_BASE_URL, getStoredAuthToken } from './apiClient';
 export { authService } from './authService';
 export { bookingService } from './bookingService';
 export { tripService } from './tripService';
@@ -13,3 +13,6 @@ export { financeService } from './financeService';
 export { payrollService } from './payrollService';
 export { customerService } from './customerService';
 export { notificationService } from './notificationService';
+export { accountantService } from './accountantService';
+export { superAdminService } from './superAdminService';
+export { integrationService } from './integrationService';

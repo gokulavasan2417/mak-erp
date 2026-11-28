@@ -97,7 +97,7 @@ export const DEMO_USERS = [
     salaryBasis: 'Attendance-Based Monthly Salary',
     monthlySalary: 42000,
     status: 'Active',
-    avatar: 'http://localhost:5000/uploads/avatars/avatar-1794562651050-830977.jpeg'
+    avatar: '/uploads/avatars/avatar-1794562651050-830977.jpeg'
   },
   {
     id: 'USR-DRV-01',

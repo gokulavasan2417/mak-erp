@@ -13,7 +13,7 @@ import { useToast } from './ToastContext';
 import { TripContext } from './TripContext';
 import { loadStoredJson, saveStoredJson } from '../utils/storage';
 import { generateId } from '../utils/idGenerator';
-import { tourPackageService, employeeService, attendanceService, vendorService, payrollService, customerService } from '../services';
+import { apiClient, tourPackageService, employeeService, attendanceService, vendorService, payrollService, customerService } from '../services';
 
 // Normalize tour package data to ensure startingPrice, priceNumeric, and price are synchronized
 export const normalizeTourPackage = (pkg) => {
@@ -163,44 +163,24 @@ export function AdminDataProvider({ children }) {
   // Real-time synchronization of Driver Partner Applications from Driver Backend
   const syncDriverApplications = useCallback(async () => {
     try {
-      const endpoints = [
-        'http://localhost:5003/api/driver/applications',
-        'http://localhost:5003/api/admin/driver-applications',
-        'http://192.168.0.4:5003/api/driver/applications',
-        '/api/driver/applications',
-      ];
-      for (const endpoint of endpoints) {
-        try {
-          const controller = new AbortController();
-          const timeoutId = setTimeout(() => controller.abort(), 3500);
-          const res = await fetch(endpoint, {
-            headers: { Accept: 'application/json' },
-            signal: controller.signal,
-          });
-          clearTimeout(timeoutId);
-          if (res.ok) {
-            const json = await res.json();
-            const liveApps = Array.isArray(json?.data) ? json.data : (Array.isArray(json) ? json : null);
-            if (liveApps && liveApps.length > 0) {
-              setDriverApplications((prev) => {
-                const map = new Map();
-                (prev || []).forEach((a) => map.set(a.id, a));
-                liveApps.forEach((a) => {
-                  const existing = map.get(a.id);
-                  if (existing && existing.status !== a.status && existing.reviewedDate) {
-                    map.set(a.id, { ...a, status: existing.status, adminRemarks: existing.adminRemarks });
-                  } else {
-                    map.set(a.id, a);
-                  }
-                });
-                const merged = Array.from(map.values());
-                saveStoredJson(ADMIN_STORAGE_KEYS.APPLICATIONS, merged);
-                return merged;
-              });
-              return;
+      const res = await apiClient.get('/drivers/applications').catch(() => null);
+      const liveApps = Array.isArray(res?.data) ? res.data : (Array.isArray(res) ? res : null);
+      if (liveApps && liveApps.length > 0) {
+        setDriverApplications((prev) => {
+          const map = new Map();
+          (prev || []).forEach((a) => map.set(a.id, a));
+          liveApps.forEach((a) => {
+            const existing = map.get(a.id);
+            if (existing && existing.status !== a.status && existing.reviewedDate) {
+              map.set(a.id, { ...a, status: existing.status, adminRemarks: existing.adminRemarks });
+            } else {
+              map.set(a.id, a);
             }
-          }
-        } catch {}
+          });
+          const merged = Array.from(map.values());
+          saveStoredJson(ADMIN_STORAGE_KEYS.APPLICATIONS, merged);
+          return merged;
+        });
       }
     } catch (e) {
       console.warn('Driver applications sync notice:', e?.message || e);
@@ -619,11 +599,7 @@ export function AdminDataProvider({ children }) {
       const added = tripAddDriver(newEnrolledDriver);
 
       // Persist status directly to Driver backend
-      fetch(`http://localhost:5003/api/admin/drivers/${applicationId}/status`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ status: 'APPROVED' }),
-      }).catch(() => {});
+      apiClient.put(`/drivers/applications/${applicationId}/status`, { status: 'APPROVED' }).catch(() => {});
 
       toast.success(
         `Driver ${approvedApp.fullName} confirmed & approved! Successfully added to active Driver List as #${added.id}.`
@@ -648,11 +624,7 @@ export function AdminDataProvider({ children }) {
     );
 
     // Persist rejection to Driver backend
-    fetch(`http://localhost:5003/api/admin/drivers/${applicationId}/status`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ status: 'REJECTED', rejectionReason: reason }),
-    }).catch(() => {});
+    apiClient.put(`/drivers/applications/${applicationId}/status`, { status: 'REJECTED', rejectionReason: reason }).catch(() => {});
 
     toast.warning(`Application #${applicationId} marked as Rejected.`);
   };
@@ -724,13 +696,9 @@ export function AdminDataProvider({ children }) {
     );
 
     // Persist document verification status to Driver backend
-    fetch(`http://localhost:5003/api/admin/drivers/${applicationId}/documents/${documentId}`, {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        status: newStatus.toUpperCase() === 'VERIFIED' ? 'VERIFIED' : (newStatus.toUpperCase() === 'REJECTED' ? 'REJECTED' : 'PENDING'),
-        rejectionReason: reason || remarks
-      }),
+    apiClient.put(`/drivers/applications/${applicationId}/documents/${documentId}`, {
+      status: newStatus.toUpperCase() === 'VERIFIED' ? 'VERIFIED' : (newStatus.toUpperCase() === 'REJECTED' ? 'REJECTED' : 'PENDING'),
+      rejectionReason: reason || remarks
     }).catch(() => {});
 
     toast.success(`Document status updated to: ${newStatus}`);

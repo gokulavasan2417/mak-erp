@@ -7,6 +7,10 @@ const router = Router();
 
 router.use(requireAuth, resolveTenant);
 
+router.get('/applications', driverController.getApplications);
+router.put('/applications/:id/status', driverController.updateApplicationStatus);
+router.put('/applications/:id/documents/:docId', driverController.updateApplicationDocument);
+
 router.get('/', driverController.getAll);
 router.get('/:id', driverController.getById);
 router.post('/', driverController.create);
