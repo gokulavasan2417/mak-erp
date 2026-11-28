@@ -1132,6 +1132,8 @@ export function BookingList() {
                                 ? '#dcfce7'
                                 : b.driverAssignmentStatus === 'Declined' || b.driverAssignmentStatus === 'Reassignment Required'
                                 ? '#fee2e2'
+                                : b.driverAssignmentStatus === 'Awaiting Vendor Allocation' || b.tripStatus === 'Dispatched to Vendor'
+                                ? '#eef2ff'
                                 : b.driverAssignmentStatus === 'Assigned'
                                 ? '#e0f2fe'
                                 : '#fef3c7',
@@ -1140,11 +1142,15 @@ export function BookingList() {
                                 ? '#15803d'
                                 : b.driverAssignmentStatus === 'Declined' || b.driverAssignmentStatus === 'Reassignment Required'
                                 ? '#b91c1c'
+                                : b.driverAssignmentStatus === 'Awaiting Vendor Allocation' || b.tripStatus === 'Dispatched to Vendor'
+                                ? '#4f46e5'
                                 : b.driverAssignmentStatus === 'Assigned'
                                 ? '#0369a1'
                                 : '#b45309'
                           }}>
-                            {b.driverAssignmentStatus || 'Pending'}
+                            {b.driverAssignmentStatus === 'Awaiting Vendor Allocation' || b.tripStatus === 'Dispatched to Vendor'
+                              ? '📱 Awaiting Vendor App'
+                              : (b.vendorAppAssignmentStatus === 'Allocated by Vendor' ? '📱 Allocated (App)' : (b.driverAssignmentStatus || 'Pending'))}
                           </span>
                         </div>
 
@@ -1410,6 +1416,8 @@ export function BookingList() {
                                   ? '#dcfce7'
                                   : b.driverAssignmentStatus === 'Declined' || b.driverAssignmentStatus === 'Reassignment Required'
                                   ? '#fee2e2'
+                                  : b.driverAssignmentStatus === 'Awaiting Vendor Allocation' || b.tripStatus === 'Dispatched to Vendor'
+                                  ? '#eef2ff'
                                   : b.driverAssignmentStatus === 'Assigned'
                                   ? '#e0f2fe'
                                   : '#fef3c7',
@@ -1418,6 +1426,8 @@ export function BookingList() {
                                   ? '#15803d'
                                   : b.driverAssignmentStatus === 'Declined' || b.driverAssignmentStatus === 'Reassignment Required'
                                   ? '#b91c1c'
+                                  : b.driverAssignmentStatus === 'Awaiting Vendor Allocation' || b.tripStatus === 'Dispatched to Vendor'
+                                  ? '#4f46e5'
                                   : b.driverAssignmentStatus === 'Assigned'
                                   ? '#0369a1'
                                   : '#b45309',
@@ -1425,7 +1435,9 @@ export function BookingList() {
                               display: 'inline-block'
                             }}
                           >
-                            {b.driverAssignmentStatus || 'Pending'}
+                            {b.driverAssignmentStatus === 'Awaiting Vendor Allocation' || b.tripStatus === 'Dispatched to Vendor'
+                              ? '📱 Awaiting Vendor App'
+                              : (b.vendorAppAssignmentStatus === 'Allocated by Vendor' ? '📱 Allocated (App)' : (b.driverAssignmentStatus || 'Pending'))}
                           </span>
                         </td>
 

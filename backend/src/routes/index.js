@@ -18,6 +18,7 @@ import payableRoutes from './payableRoutes.js';
 import driverSettlementRoutes from './driverSettlementRoutes.js';
 import cashBankRoutes from './cashBankRoutes.js';
 import reportRoutes from './reportRoutes.js';
+import integrationRoutes from './integrationRoutes.js';
 
 const router = Router();
 
@@ -40,5 +41,6 @@ router.use('/cash-bank', cashBankRoutes);
 router.use('/reports', reportRoutes);
 router.use('/notifications', notificationRoutes);
 router.use('/tour-packages', tourPackageRoutes);
+router.use('/integrations', integrationRoutes);
 
 export default router;

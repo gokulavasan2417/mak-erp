@@ -63,7 +63,15 @@ const corsOptions = {
     'X-Admin-Role',
     'x-admin-role',
     'X-Tenant-Id',
-    'x-tenant-id'
+    'x-tenant-id',
+    'X-API-Key',
+    'x-api-key',
+    'X-MAK-TAXI-API-KEY',
+    'x-mak-taxi-api-key',
+    'X-Signature-SHA256',
+    'x-signature-sha256',
+    'X-MAK-ERP-Signature',
+    'x-mak-erp-signature'
   ]
 };
 

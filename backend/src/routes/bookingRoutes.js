@@ -17,6 +17,7 @@ router.get('/:id/invoice/pdf', financeController.downloadInvoicePdf);
 router.get('/:id', bookingController.getById);
 router.put('/:id', bookingController.update);
 router.post('/:id/assign', requirePermission('trips.assign'), bookingController.assign);
+router.post('/:id/assign-vendor', requirePermission('trips.assign'), bookingController.assignVendor);
 router.post('/:id/cancel', requirePermission('bookings.delete'), bookingController.cancel);
 router.patch('/:id/status', bookingController.updateStatus);
 

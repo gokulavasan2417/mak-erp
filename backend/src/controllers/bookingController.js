@@ -4,6 +4,8 @@
 import { Booking } from '../models/Booking.js';
 import { Vehicle } from '../models/Vehicle.js';
 import { Driver } from '../models/Driver.js';
+import { Vendor } from '../models/Vendor.js';
+import { dispatchOutstationTripToVendor } from '../services/makTaxiIntegrationService.js';
 import { sequenceService } from '../services/sequenceService.js';
 import { stripProtectedFields, whitelistFields } from '../utils/fieldHelper.js';
 import { escapeRegex } from '../utils/escapeRegex.js';
@@ -871,8 +873,119 @@ export const bookingController = {
         );
       }
 
+      // If assigned to a vendor vehicle, trigger outbound webhook to MAK TAXI app
+      if (finalVehicleObj && (finalVehicleObj.isVendorVehicle || finalVehicleObj.vendorId)) {
+        try {
+          const vLookup = finalVehicleObj.vendorId;
+          const vendorDoc = await Vendor.findOne({
+            ...buildTenantQuery(bookingTenantId),
+            $or: [{ vendorId: vLookup }, { externalVendorId: vLookup }, { id: vLookup }, { _id: String(vLookup).match(/^[0-9a-fA-F]{24}$/) ? vLookup : null }]
+          });
+          if (vendorDoc) {
+            await dispatchOutstationTripToVendor(updated, vendorDoc, {
+              vendorPayoutPercent: setPayload.vendorPayoutPercent,
+              vendorPayableAmount: setPayload.vendorPayableAmount
+            });
+          }
+        } catch (vErr) {
+          console.warn('[BookingController] Webhook notification to vendor failed:', vErr.message);
+        }
+      }
+
       const enriched = await enrichBookingWithAssignments(updated.toObject ? updated.toObject() : updated, bookingTenantId);
       return res.status(200).json({ status: 'success', data: enriched });
+    } catch (err) {
+      next(err);
+    }
+  },
+
+  /**
+   * Assign Outstation Booking directly to a Partner Vendor (MAK TAXI App)
+   * The vendor will allocate driver & vehicle from their app.
+   */
+  assignVendor: async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { vendorId, vendorPayoutPercent, notes = '' } = req.body;
+      const tenantId = (req.tenantId || req.user?.tenantId || 'mak-tours').toLowerCase().trim();
+
+      const orClauses = [{ id }, { refId: id }, { bookingNumber: id }, { bookingId: id }];
+      if (typeof id === 'string' && id.match(/^[0-9a-fA-F]{24}$/)) {
+        orClauses.push({ _id: id });
+      }
+
+      const booking = await Booking.findOne({
+        ...buildTenantQuery(tenantId),
+        $or: orClauses
+      });
+
+      if (!booking) {
+        return res.status(404).json({ status: 'error', message: 'Booking not found' });
+      }
+
+      const vendor = await Vendor.findOne({
+        ...buildTenantQuery(tenantId),
+        $or: [
+          { vendorId },
+          { externalVendorId: vendorId },
+          { id: vendorId },
+          { _id: String(vendorId).match(/^[0-9a-fA-F]{24}$/) ? vendorId : null }
+        ]
+      });
+
+      if (!vendor) {
+        return res.status(404).json({ status: 'error', message: 'Vendor partner not found' });
+      }
+
+      const totalAmt = Number(booking.totalAmount || booking.pricing || booking.totalFare || 0);
+      const payoutPct = Number(vendorPayoutPercent ?? vendor.contractPayoutPercent ?? 85);
+      const payableAmt = Math.round(totalAmt * (payoutPct / 100));
+
+      const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const timelineEntry = {
+        id: `TL-VND-${Date.now()}`,
+        timestamp: nowTime,
+        event: `Outstation trip assigned & dispatched to Partner Vendor: ${vendor.companyName || vendor.name} (${vendor.phone}) via MAK TAXI App • ${payoutPct}% Payout (₹${payableAmt.toLocaleString('en-IN')})`,
+        actor: 'Operations Admin',
+        status: 'Assigned'
+      };
+
+      booking.assignedVendorId = vendor.vendorId || vendor.id;
+      booking.assignedVendorName = vendor.companyName || vendor.name;
+      booking.assignedVendor = {
+        id: vendor.vendorId || vendor.id,
+        name: vendor.companyName || vendor.name,
+        phone: vendor.phone,
+        externalVendorId: vendor.externalVendorId || vendor.vendorId || vendor.id
+      };
+      booking.vendorPayoutPercent = payoutPct;
+      booking.vendorPayableAmount = payableAmt;
+      booking.driverAssignmentStatus = 'Awaiting Vendor Allocation';
+      booking.tripStatus = 'Dispatched to Vendor';
+      booking.vendorAppAssignmentStatus = 'Dispatched to App';
+      booking.assignmentTimeline = booking.assignmentTimeline || [];
+      booking.assignmentTimeline.push(timelineEntry);
+
+      await booking.save();
+
+      // Trigger Outbound Webhook to MAK TAXI Backend
+      let dispatchResult = null;
+      try {
+        dispatchResult = await dispatchOutstationTripToVendor(booking, vendor, {
+          vendorPayoutPercent: payoutPct,
+          vendorPayableAmount: payableAmt
+        });
+      } catch (dispErr) {
+        console.warn('[BookingController] Webhook dispatch warning:', dispErr.message);
+      }
+
+      const enriched = await enrichBookingWithAssignments(booking.toObject ? booking.toObject() : booking, tenantId);
+      return res.status(200).json({
+        status: 'success',
+        data: enriched,
+        dispatchResult,
+        message: `Outstation trip assigned to ${vendor.companyName} and dispatched to MAK TAXI Vendor App`
+      });
     } catch (err) {
       next(err);
     }

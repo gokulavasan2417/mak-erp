@@ -380,19 +380,36 @@ export function VendorList() {
                     gap: '0.5rem'
                   }}
                 >
-                  <span
-                    style={{
-                      fontSize: '0.725rem',
-                      fontWeight: 700,
-                      padding: '0.2rem 0.55rem',
-                      borderRadius: '6px',
-                      backgroundColor: '#eef2ff',
-                      color: '#2C3480',
-                      border: '1px solid #c7d2fe'
-                    }}
-                  >
-                    {vnd.category}
-                  </span>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                    <span
+                      style={{
+                        fontSize: '0.725rem',
+                        fontWeight: 700,
+                        padding: '0.2rem 0.55rem',
+                        borderRadius: '6px',
+                        backgroundColor: '#eef2ff',
+                        color: '#2C3480',
+                        border: '1px solid #c7d2fe'
+                      }}
+                    >
+                      {vnd.category || 'Travel Partner'}
+                    </span>
+                    {(vnd.source === 'MAK_TAXI_APP' || Boolean(vnd.externalVendorId)) && (
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 800,
+                          padding: '0.15rem 0.45rem',
+                          borderRadius: '6px',
+                          backgroundColor: '#dcfce7',
+                          color: '#166534',
+                          border: '1px solid #bbf7d0'
+                        }}
+                      >
+                        📱 MAK TAXI App
+                      </span>
+                    )}
+                  </div>
 
                   <StatusBadge status={vnd.status} />
                 </div>
@@ -571,13 +588,20 @@ export function VendorList() {
                           <Truck size={18} />
                         </div>
                         <div>
-                          <div
-                            onClick={() => navigate(`/admin/vendors/${vnd.id}`)}
-                            style={{ fontWeight: 700, color: '#0f172a', cursor: 'pointer' }}
-                            onMouseEnter={(e) => (e.currentTarget.style.color = '#2C3480')}
-                            onMouseLeave={(e) => (e.currentTarget.style.color = '#0f172a')}
-                          >
-                            {vnd.businessName || vnd.companyName || vnd.name || 'Vendor Partner'}
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                            <div
+                              onClick={() => navigate(`/admin/vendors/${vnd.id}`)}
+                              style={{ fontWeight: 700, color: '#0f172a', cursor: 'pointer' }}
+                              onMouseEnter={(e) => (e.currentTarget.style.color = '#2C3480')}
+                              onMouseLeave={(e) => (e.currentTarget.style.color = '#0f172a')}
+                            >
+                              {vnd.businessName || vnd.companyName || vnd.name || 'Vendor Partner'}
+                            </div>
+                            {(vnd.source === 'MAK_TAXI_APP' || Boolean(vnd.externalVendorId)) && (
+                              <span style={{ fontSize: '0.65rem', fontWeight: 800, padding: '0.1rem 0.35rem', borderRadius: '4px', backgroundColor: '#dcfce7', color: '#166534', border: '1px solid #bbf7d0' }}>
+                                📱 App
+                              </span>
+                            )}
                           </div>
                           <div style={{ fontSize: '0.75rem', color: '#64748b' }}>
                             {vnd.vendorCode || vnd.vendorId || vnd.id} &bull; {vnd.id}

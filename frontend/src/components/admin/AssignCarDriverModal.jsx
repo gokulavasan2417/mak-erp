@@ -21,7 +21,9 @@ import {
   Phone,
   Send,
   ArrowRight,
-  IndianRupee
+  IndianRupee,
+  Smartphone,
+  Bell
 } from 'lucide-react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
@@ -42,9 +44,11 @@ export function AssignCarDriverModal({
     vehicles = [],
     drivers = [],
     bookings = [],
+    vendors = [],
     driverLeaves = [],
     driverLeaveRequests = [],
     confirmTripAssignment,
+    assignOutstationTripToVendor,
     assignVehicle,
     settings
   } = useAdminData();
@@ -83,6 +87,9 @@ export function AssignCarDriverModal({
   const defaultRoundTripPay = settings?.payoutPolicies?.driverRoundTripPay ?? 1500;
   const defaultTourPackagePay = settings?.payoutPolicies?.driverTourPackagePay ?? 2500;
 
+  const [dispatchMode, setDispatchMode] = useState('fleet'); // 'fleet' | 'makTaxiVendor'
+  const [selectedVendorPartnerId, setSelectedVendorPartnerId] = useState('');
+  const [vendorNotes, setVendorNotes] = useState('');
   const [selectedVehicleId, setSelectedVehicleId] = useState('');
   const [selectedDriverId, setSelectedDriverId] = useState('');
   const [vendorPercent, setVendorPercent] = useState(defaultVendorPercent);
@@ -193,6 +200,35 @@ export function AssignCarDriverModal({
   const handleSubmit = async (e) => {
     e.preventDefault();
 
+    if (dispatchMode === 'makTaxiVendor') {
+      if (!selectedVendorPartnerId) {
+        toast.error('Please select a partner vendor to delegate this outstation trip');
+        return;
+      }
+      setIsSubmitting(true);
+      try {
+        const targetId = safeBooking.id || safeBooking.bookingNumber;
+        const selectedVenObj = (vendors || []).find(
+          (v) => v.id === selectedVendorPartnerId || v.vendorId === selectedVendorPartnerId || v.externalVendorId === selectedVendorPartnerId
+        );
+        const ok = await assignOutstationTripToVendor(targetId, selectedVendorPartnerId, {
+          vendorPayoutPercent: Number(vendorPercent),
+          vendorObj: selectedVenObj,
+          notes: vendorNotes
+        });
+        if (ok) {
+          if (onSuccess) await onSuccess();
+          onClose();
+        }
+      } catch (err) {
+        console.error('Vendor dispatch error:', err);
+        toast.error('Failed to dispatch trip to vendor app');
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
     if (!selectedVehicleId) {
       toast.error('Please select a commercial fleet vehicle from the dropdown');
       return;
@@ -251,15 +287,230 @@ export function AssignCarDriverModal({
             variant="primary"
             type="button"
             onClick={handleSubmit}
-            disabled={!selectedVehicleId || !selectedDriverId || isSubmitting}
-            leftIcon={<Send size={15} />}
+            disabled={
+              dispatchMode === 'makTaxiVendor'
+                ? (!selectedVendorPartnerId || isSubmitting)
+                : (!selectedVehicleId || !selectedDriverId || isSubmitting)
+            }
+            leftIcon={dispatchMode === 'makTaxiVendor' ? <Smartphone size={15} /> : <Send size={15} />}
           >
-            {isSubmitting ? 'Dispatching...' : 'Confirm Car & Driver Dispatch'}
+            {isSubmitting
+              ? 'Dispatching...'
+              : (dispatchMode === 'makTaxiVendor' ? 'Dispatch to MAK TAXI Vendor App' : 'Confirm Car & Driver Dispatch')}
           </Button>
         </div>
       }
     >
       <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        {/* Dispatch Mode Toggle: In-House Fleet vs MAK TAXI Partner App */}
+        <div style={{ display: 'flex', backgroundColor: '#F1F5F9', padding: '0.25rem', borderRadius: '10px', gap: '0.35rem' }}>
+          <button
+            type="button"
+            onClick={() => setDispatchMode('fleet')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.75rem',
+              borderRadius: '8px',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.8125rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.45rem',
+              backgroundColor: dispatchMode === 'fleet' ? '#FFFFFF' : 'transparent',
+              color: dispatchMode === 'fleet' ? '#2C3480' : '#64748B',
+              boxShadow: dispatchMode === 'fleet' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Car size={16} />
+            Direct Fleet Dispatch (Car & Driver)
+          </button>
+          <button
+            type="button"
+            onClick={() => setDispatchMode('makTaxiVendor')}
+            style={{
+              flex: 1,
+              padding: '0.6rem 0.75rem',
+              borderRadius: '8px',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '0.8125rem',
+              cursor: 'pointer',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '0.45rem',
+              backgroundColor: dispatchMode === 'makTaxiVendor' ? '#FFFFFF' : 'transparent',
+              color: dispatchMode === 'makTaxiVendor' ? '#2C3480' : '#64748B',
+              boxShadow: dispatchMode === 'makTaxiVendor' ? '0 1px 3px rgba(0,0,0,0.08)' : 'none',
+              transition: 'all 0.15s ease'
+            }}
+          >
+            <Smartphone size={16} />
+            Delegate to MAK TAXI Partner App
+          </button>
+        </div>
+
+        {dispatchMode === 'makTaxiVendor' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            {/* Real-time Push Alert Banner */}
+            <div
+              style={{
+                backgroundColor: '#EEF2FF',
+                border: '1.5px solid #C7D2FE',
+                borderRadius: '10px',
+                padding: '0.875rem 1rem',
+                display: 'flex',
+                gap: '0.75rem',
+                alignItems: 'flex-start'
+              }}
+            >
+              <Bell size={20} style={{ color: '#2C3480', flexShrink: 0, marginTop: '0.1rem' }} />
+              <div style={{ fontSize: '0.8rem', color: '#1E293B', lineHeight: 1.45 }}>
+                <strong style={{ color: '#2C3480', display: 'block', marginBottom: '0.2rem' }}>
+                  Real-time Outstation Trip Assignment
+                </strong>
+                Assigning this outstation booking will send an instant push notification and buzzer to the chosen partner's <strong>MAK TAXI Vendor App</strong>. The vendor will select their available driver and car directly from their app, which will automatically sync back to your ERP manifest.
+              </div>
+            </div>
+
+            {/* Vendor Partner Select */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.875rem', fontWeight: 700, color: '#0F172A', marginBottom: '0.4rem' }}>
+                Select Partner Vendor <span style={{ color: '#DC2626' }}>*</span>
+              </label>
+              <select
+                value={selectedVendorPartnerId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  setSelectedVendorPartnerId(val);
+                  const found = (vendors || []).find((v) => v.id === val || v.vendorId === val || v.externalVendorId === val);
+                  if (found && found.contractPayoutPercent) {
+                    setVendorPercent(found.contractPayoutPercent);
+                  }
+                }}
+                style={{
+                  width: '100%',
+                  padding: '0.625rem 0.875rem',
+                  borderRadius: '8px',
+                  border: '1.5px solid #CBD5E1',
+                  backgroundColor: '#FFFFFF',
+                  fontSize: '0.875rem',
+                  fontWeight: 600,
+                  color: '#0F172A',
+                  outline: 'none',
+                  cursor: 'pointer'
+                }}
+              >
+                <option value="">-- Choose Partner Vendor ({vendors.length} Registered Partners) --</option>
+                {vendors.map((vnd) => {
+                  const vId = vnd.vendorId || vnd.id || vnd._id;
+                  const isAppSynced = vnd.source === 'MAK_TAXI_APP' || Boolean(vnd.externalVendorId);
+                  return (
+                    <option key={vId} value={vId}>
+                      {isAppSynced ? '📱 [MAK TAXI App] ' : '🏢 '}
+                      {vnd.companyName || vnd.name || 'Vendor'} ({vnd.phone}) &bull; {vnd.city || 'Chennai'} &bull; Fleet: {vnd.totalVehiclesAttached || vnd.fleetCount || 0} Cars &bull; {vnd.contractPayoutPercent || 85}% Payout
+                    </option>
+                  );
+                })}
+              </select>
+            </div>
+
+            {/* Selected Vendor Preview */}
+            {selectedVendorPartnerId && (() => {
+              const currentVnd = (vendors || []).find((v) => v.id === selectedVendorPartnerId || v.vendorId === selectedVendorPartnerId || v.externalVendorId === selectedVendorPartnerId);
+              if (!currentVnd) return null;
+              const isApp = currentVnd.source === 'MAK_TAXI_APP' || Boolean(currentVnd.externalVendorId);
+              const totalFare = Number(safeBooking.totalAmount || 0);
+              const payable = Math.round(totalFare * (vendorPercent / 100));
+
+              return (
+                <div style={{ backgroundColor: '#F8FAFC', border: '1px solid #E2E8F0', borderRadius: '10px', padding: '0.875rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <strong style={{ fontSize: '0.95rem', color: '#0F172A' }}>
+                          {currentVnd.companyName || currentVnd.name}
+                        </strong>
+                        {isApp && (
+                          <span style={{ fontSize: '0.7rem', fontWeight: 800, padding: '0.15rem 0.45rem', borderRadius: '6px', backgroundColor: '#DCFCE7', color: '#166534', border: '1px solid #BBF7D0' }}>
+                            📱 Connected to MAK TAXI App
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.75rem', color: '#64748B', marginTop: '0.15rem' }}>
+                        Contact: {currentVnd.contactPerson || currentVnd.ownerName || 'Admin'} &bull; Phone: {currentVnd.phone} &bull; {currentVnd.city || 'Chennai'}
+                      </div>
+                    </div>
+                    <Badge variant="primary" size="sm">
+                      {currentVnd.totalVehiclesAttached || currentVnd.fleetCount || 0} Vehicles Attached
+                    </Badge>
+                  </div>
+
+                  {/* Financial Settlement Terms */}
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.75rem', paddingTop: '0.65rem', borderTop: '1px dashed #CBD5E1' }}>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.25rem' }}>
+                        Vendor Payout (%)
+                      </label>
+                      <input
+                        type="number"
+                        min="50"
+                        max="95"
+                        value={vendorPercent}
+                        onChange={(e) => setVendorPercent(Number(e.target.value))}
+                        style={{
+                          width: '100%',
+                          padding: '0.5rem 0.65rem',
+                          borderRadius: '6px',
+                          border: '1px solid #CBD5E1',
+                          fontSize: '0.875rem',
+                          fontWeight: 700
+                        }}
+                      />
+                    </div>
+
+                    <div>
+                      <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.25rem' }}>
+                        Calculated Vendor Payable
+                      </label>
+                      <div style={{ fontSize: '1rem', fontWeight: 800, color: '#166534', paddingTop: '0.35rem' }}>
+                        ₹{payable.toLocaleString('en-IN')}
+                        <span style={{ fontSize: '0.7rem', color: '#64748B', fontWeight: 500, marginLeft: '0.3rem' }}>
+                          (of ₹{totalFare.toLocaleString('en-IN')})
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Notes / Special Instructions */}
+                  <div>
+                    <label style={{ fontSize: '0.75rem', fontWeight: 700, color: '#334155', display: 'block', marginBottom: '0.25rem' }}>
+                      Instructions for Vendor (Optional)
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="e.g. VIP passenger, AC required, neat sedan requested"
+                      value={vendorNotes}
+                      onChange={(e) => setVendorNotes(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '0.5rem 0.65rem',
+                        borderRadius: '6px',
+                        border: '1px solid #CBD5E1',
+                        fontSize: '0.8125rem'
+                      }}
+                    />
+                  </div>
+                </div>
+              );
+            })()}
+          </div>
+        ) : (
+          <>
         {/* Customer Requested Vehicle Notice */}
         <div
           style={{
@@ -724,6 +975,8 @@ export function AssignCarDriverModal({
             })()}
           </div>
         )}
+      </>
+    )}
       </form>
     </Modal>
   );

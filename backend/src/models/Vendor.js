@@ -42,6 +42,11 @@ const vendorSchema = new mongoose.Schema(
       contractAgreementUrl: { type: String, default: '' }
     },
     avatar: { type: String, default: '' },
+    source: { type: String, default: 'ERP', enum: ['ERP', 'MAK_TAXI_APP', 'MANUAL', 'EXTERNAL'] },
+    externalVendorId: { type: String, sparse: true, index: true },
+    appRegistrationStatus: { type: String, default: 'Approved', enum: ['Approved', 'Pending', 'Rejected'] },
+    syncedFromAppAt: { type: Date, default: null },
+    lastSyncedAt: { type: Date, default: null },
     status: { type: String, default: 'Active', enum: ['Active', 'Pending Verification', 'Suspended', 'Inactive'] }
   },
   {

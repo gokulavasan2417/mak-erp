@@ -847,6 +847,28 @@ export function BookingDetails() {
                     </div>
                   </div>
                 </div>
+              ) : (booking.driverAssignmentStatus === 'Awaiting Vendor Allocation' || booking.tripStatus === 'Dispatched to Vendor') ? (
+                <div style={{ backgroundColor: '#EEF2FF', border: '1.5px dashed #6366F1', borderRadius: '12px', padding: '1.25rem', textAlign: 'center' }}>
+                  <div style={{ fontSize: '1.6rem', marginBottom: '0.25rem' }}>📱</div>
+                  <div style={{ fontWeight: 800, color: '#2C3480', fontSize: '1rem' }}>
+                    Dispatched to MAK TAXI Partner App
+                  </div>
+                  <div style={{ fontSize: '0.85rem', color: '#1E293B', marginTop: '0.25rem' }}>
+                    Assigned to Vendor: <strong>{booking.assignedVendorName || booking.assignedVendor?.name || 'Partner Vendor'}</strong>
+                  </div>
+                  <div style={{ fontSize: '0.78rem', color: '#6366F1', marginTop: '0.35rem', fontWeight: 600 }}>
+                    ⚡ Instant push notification &amp; buzzer sent to vendor app. Awaiting vendor's driver &amp; vehicle selection.
+                  </div>
+                  <div style={{ marginTop: '0.875rem', display: 'flex', gap: '0.5rem', justifyContent: 'center' }}>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setIsAssignDispatchOpen(true)}
+                    >
+                      Change / Reassign Dispatch
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <div style={{ backgroundColor: '#fffbeb', border: '1.5px dashed #f59e0b', borderRadius: '12px', padding: '1.25rem', textAlign: 'center' }}>
                   <div style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>🚗</div>

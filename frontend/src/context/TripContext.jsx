@@ -2182,6 +2182,99 @@ export function TripProvider({ children }) {
     return true;
   }, [bookings, drivers, vehicles, assignments, pushDriverNotification, pushAdminNotification, toast]);
 
+  // --- 2B. ASSIGN OUTSTATION TRIP TO MAK TAXI PARTNER VENDOR ---
+  const assignOutstationTripToVendor = useCallback(async (bookingId, vendorId, options = {}) => {
+    const booking = bookings.find(
+      (b) => b.id === bookingId || b.bookingNumber === bookingId || b.refId === bookingId || b._id === bookingId
+    );
+    if (!booking) {
+      toast.error('Booking not found');
+      return false;
+    }
+
+    // Load vendors from localStorage or options
+    const storedVendors = loadStoredJson('mak_erp_vendors_v1', []);
+    const vendor = (storedVendors || []).find(
+      (v) => v.id === vendorId || v.vendorId === vendorId || v.externalVendorId === vendorId
+    ) || options.vendorObj;
+
+    if (!vendor) {
+      toast.error('Selected vendor partner not found');
+      return false;
+    }
+
+    const totalFare = Number(booking.totalAmount || booking.pricing || booking.totalFare || 0);
+    const vendorPayoutPercent = Number(options.vendorPayoutPercent ?? vendor.contractPayoutPercent ?? 85);
+    const vendorPayableAmount = Math.round(totalFare * (vendorPayoutPercent / 100));
+
+    const nowTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const timelineEntry = {
+      id: generateId('TL', { useYear: false }),
+      timestamp: nowTime,
+      event: `Outstation trip assigned & dispatched to Partner Vendor: ${vendor.companyName || vendor.name} (${vendor.phone}) via MAK TAXI App • ${vendorPayoutPercent}% Payout (₹${vendorPayableAmount.toLocaleString('en-IN')})`,
+      actor: 'Operations Admin',
+      status: 'Assigned'
+    };
+
+    const updatedTimeline = [...(booking.assignmentTimeline || booking.history || []), timelineEntry];
+
+    const payload = {
+      assignedVendorId: vendor.vendorId || vendor.id,
+      assignedVendorName: vendor.companyName || vendor.name,
+      assignedVendor: {
+        id: vendor.vendorId || vendor.id,
+        name: vendor.companyName || vendor.name,
+        phone: vendor.phone,
+        externalVendorId: vendor.externalVendorId || vendor.vendorId || vendor.id
+      },
+      vendorPayoutPercent,
+      vendorPayableAmount,
+      driverAssignmentStatus: 'Awaiting Vendor Allocation',
+      tripStatus: 'Dispatched to Vendor',
+      vendorAppAssignmentStatus: 'Dispatched to App',
+      assignmentTimeline: updatedTimeline,
+      history: updatedTimeline
+    };
+
+    // 1. Immediately update in local state & localStorage
+    setBookings((prev) => {
+      const nextList = prev.map((b) => {
+        if (b.id === bookingId || b.id === booking.id || b.bookingNumber === booking.bookingNumber || b.refId === bookingId || b._id === bookingId) {
+          return {
+            ...b,
+            ...payload
+          };
+        }
+        return b;
+      });
+      saveStoredJson(STORAGE_KEYS.BOOKINGS, nextList);
+      return nextList;
+    });
+
+    // 2. Persist to MongoDB Atlas backend via bookingService.assignVendor
+    try {
+      const syncTargetId = booking.id || booking.bookingNumber || booking.refId || booking._id;
+      if (syncTargetId && bookingService?.assignVendor) {
+        await bookingService.assignVendor(syncTargetId, {
+          vendorId: vendor.vendorId || vendor.id,
+          vendorPayoutPercent,
+          notes: options.notes || ''
+        });
+      }
+    } catch (err) {
+      console.warn('[TripContext] Server assignVendor sync error:', err.message);
+    }
+
+    pushAdminNotification({
+      title: `Dispatched to Vendor App - Booking #${booking.bookingNumber || booking.id}`,
+      message: `Assigned outstation trip to partner ${vendor.companyName || vendor.name}. Awaiting driver and vehicle allocation from their MAK TAXI app.`,
+      category: 'Dispatch'
+    });
+
+    toast.success(`Dispatched to ${vendor.companyName || vendor.name} via MAK TAXI App!`);
+    return true;
+  }, [bookings, pushAdminNotification, toast]);
+
   // --- 3. DRIVER ACCEPT TRIP ---
   const acceptTripAssignment = useCallback((targetId) => {
     if (!targetId) return false;
@@ -4458,6 +4551,7 @@ export function TripProvider({ children }) {
     markBookingCompleted,
     assignVehicle,
     confirmTripAssignment,
+    assignOutstationTripToVendor,
     acceptTripAssignment,
     declineTripAssignment,
     arrivedAtPickup,

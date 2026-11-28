@@ -35,8 +35,15 @@ export const bookingService = {
   /**
    * Assign vehicle and driver to a booking
    */
-  async assign(id, { driverId, vehicleId, notes }) {
-    return apiClient.post(`/bookings/${id}/assign`, { driverId, vehicleId, notes });
+  async assign(id, { driverId, vehicleId, notes, ...rest }) {
+    return apiClient.post(`/bookings/${id}/assign`, { driverId, vehicleId, notes, ...rest });
+  },
+
+  /**
+   * Assign outstation booking directly to a partner vendor (MAK TAXI App)
+   */
+  async assignVendor(id, payload) {
+    return apiClient.post(`/bookings/${id}/assign-vendor`, payload);
   },
 
   /**

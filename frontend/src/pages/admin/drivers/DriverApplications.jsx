@@ -50,13 +50,24 @@ export function DriverApplications() {
     approveDriverApplication,
     rejectDriverApplication,
     requestDocumentsApplication,
-    verifyDriverDocument
+    verifyDriverDocument,
+    syncDriverApplications
   } = useAdminData();
 
   const [activeTab, setActiveTab] = useState('All');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedApplication, setSelectedApplication] = useState(null);
   const [reviewNotes, setReviewNotes] = useState('');
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleManualSync = async () => {
+    if (typeof syncDriverApplications === 'function') {
+      setIsSyncing(true);
+      await syncDriverApplications();
+      setTimeout(() => setIsSyncing(false), 600);
+      toast.info('Driver applications synchronized from Driver Portal Server.');
+    }
+  };
 
   // Rejection & Resubmission Modal State (for overall application or specific document)
   const [rejectModalApp, setRejectModalApp] = useState(null);
@@ -284,6 +295,16 @@ export function DriverApplications() {
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <Button
+            variant="outline"
+            size="sm"
+            leftIcon={<RefreshCw size={14} className={isSyncing ? "animate-spin" : ""} />}
+            style={{ borderRadius: '6px' }}
+            onClick={handleManualSync}
+            disabled={isSyncing}
+          >
+            {isSyncing ? 'Syncing...' : 'Sync Driver Portal'}
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -558,6 +579,12 @@ export function DriverApplications() {
                         DL: <code style={{ color: '#2C3480', fontWeight: 700 }}>{app.licenseNumber}</code> (Exp: {app.licenseExpiry})
                       </div>
                     )}
+
+                    {app.vehicleModel && (
+                      <div style={{ fontSize: '0.75rem', color: '#475569' }}>
+                        Cab: <strong style={{ color: '#0f172a' }}>{app.vehicleModel}</strong> ({app.vehicleCategory || 'SEDAN'}) &bull; <code style={{ color: '#2C3480', fontWeight: 700 }}>{app.vehiclePlate || 'On file'}</code>
+                      </div>
+                    )}
                   </div>
 
                   <div>
@@ -746,8 +773,12 @@ export function DriverApplications() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '0.5rem', marginTop: '0.5rem', fontSize: '0.75rem', color: '#475569' }}>
                     <div>DOB: <strong>{currentApp.dob} ({currentApp.gender || 'Male'})</strong></div>
                     <div>Phone: <strong>{currentApp.phone}</strong></div>
+                    <div>City: <strong>{currentApp.city || 'Madurai'}</strong></div>
                     <div>Address: <strong>{currentApp.address}</strong></div>
                     <div>Emergency: <strong>{currentApp.emergencyContactName} ({currentApp.emergencyContactPhone})</strong></div>
+                    <div>Vehicle: <strong>{currentApp.vehicleModel || 'Registered Cab'} ({currentApp.vehicleCategory || 'SEDAN'})</strong></div>
+                    <div>Number Plate: <code style={{ color: '#2C3480', fontWeight: 700 }}>{currentApp.vehiclePlate || 'On file'}</code></div>
+                    <div>Driving License: <code style={{ color: '#2C3480', fontWeight: 700 }}>{currentApp.licenseNumber || 'On file'}</code></div>
                   </div>
                 </div>
               </div>
@@ -869,6 +900,48 @@ export function DriverApplications() {
                           </a>
                         </div>
                       </div>
+
+                      {/* Document Scanned Photo Inline Thumbnail Preview */}
+                      {doc.fileUrl && (
+                        <div
+                          style={{
+                            marginTop: '0.5rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '0.75rem',
+                            backgroundColor: '#f8fafc',
+                            padding: '0.5rem',
+                            borderRadius: '4px',
+                            border: '1px solid #e2e8f0',
+                            cursor: 'pointer'
+                          }}
+                          onClick={() => {
+                            setPreviewDocUrl(doc.fileUrl);
+                            setPreviewDocTitle(doc.title);
+                          }}
+                          title="Click to view full high-res scan"
+                        >
+                          <img
+                            src={doc.fileUrl}
+                            alt={doc.title}
+                            style={{
+                              width: '120px',
+                              height: '80px',
+                              objectFit: 'cover',
+                              borderRadius: '4px',
+                              border: '1px solid #cbd5e1'
+                            }}
+                          />
+                          <div>
+                            <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#2C3480' }}>
+                              Scanned Document Attached
+                            </div>
+                            <div style={{ fontSize: '0.6875rem', color: '#64748b' }}>
+                              Click image or &quot;Preview Scan&quot; to inspect full resolution
+                            </div>
+                          </div>
+                        </div>
+                      )}
 
                       {/* Display Rejection / Resubmission Notes */}
                       {(doc.rejectionReason || doc.remarks) && (

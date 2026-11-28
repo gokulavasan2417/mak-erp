@@ -72,11 +72,65 @@ export function DriverDetails() {
     // Case 1: driver.documents is an array of document objects
     if (Array.isArray(driver.documents) && driver.documents.length > 0) {
       return driver.documents.map((d) => ({
-        name: d.name || 'Statutory Clearance Document',
+        name: d.name || d.title || (d.documentType ? d.documentType.replace(/_/g, ' ') : 'Statutory Clearance Document'),
         status: d.status || 'Verified',
-        expiry: d.expiry || 'Active / Lifetime',
-        url: d.url || null
+        expiry: d.expiry || (d.expiryDate ? new Date(d.expiryDate).toLocaleDateString() : 'Active / Lifetime'),
+        url: d.url || d.fileUrl || null
       }));
+    }
+
+    // Direct uploaded images on driver model
+    const directDocs = [];
+    if (driver.licenseFrontImage) {
+      directDocs.push({
+        name: 'Commercial Driving License (Front)',
+        status: driver.licenseNumber ? 'Verified' : 'Pending',
+        expiry: driver.drivingLicenseExpiry || driver.licenseExpiry || 'Active',
+        url: driver.licenseFrontImage,
+      });
+    }
+    if (driver.licenseBackImage) {
+      directDocs.push({
+        name: 'Commercial Driving License (Back)',
+        status: driver.licenseNumber ? 'Verified' : 'Pending',
+        expiry: driver.drivingLicenseExpiry || driver.licenseExpiry || 'Active',
+        url: driver.licenseBackImage,
+      });
+    }
+    if (driver.vehiclePhotoImage) {
+      directDocs.push({
+        name: 'Vehicle Exterior Photo (Plate Visible)',
+        status: 'Verified',
+        expiry: 'Active',
+        url: driver.vehiclePhotoImage,
+      });
+    }
+    if (driver.rcBookImage) {
+      directDocs.push({
+        name: 'Vehicle RC Book Photo',
+        status: 'Verified',
+        expiry: 'Active',
+        url: driver.rcBookImage,
+      });
+    }
+    if (driver.insuranceImage) {
+      directDocs.push({
+        name: 'Commercial Vehicle Insurance Policy',
+        status: 'Verified',
+        expiry: driver.insuranceExpiry ? new Date(driver.insuranceExpiry).toLocaleDateString() : 'Active',
+        url: driver.insuranceImage,
+      });
+    }
+    if (driver.profileImage) {
+      directDocs.push({
+        name: 'Driver Profile Photo',
+        status: 'Verified',
+        expiry: 'Active',
+        url: driver.profileImage,
+      });
+    }
+    if (directDocs.length > 0) {
+      return directDocs;
     }
 
     // Case 2: driver.documents is an object from MongoDB { drivingLicenseUrl, aadharUrl, policeVerificationUrl, medicalCertUrl }

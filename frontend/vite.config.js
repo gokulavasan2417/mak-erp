@@ -8,6 +8,11 @@ export default defineConfig({
     port: 5173,
     host: true,
     proxy: {
+      '/api/driver': {
+        target: 'http://localhost:5003',
+        changeOrigin: true,
+        secure: false,
+      },
       '/api': {
         target: 'http://localhost:5000',
         changeOrigin: true,

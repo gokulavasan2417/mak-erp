@@ -88,15 +88,32 @@ const bookingSchema = new mongoose.Schema(
     nightStayAddedByDriver: { type: Boolean, default: false },
     vendorPayoutPercent: { type: Number, default: null },
     vendorPayableAmount: { type: Number, default: 0 },
+    assignedVendorId: { type: String, default: '' },
+    assignedVendorName: { type: String, default: '' },
+    assignedVendor: { type: mongoose.Schema.Types.Mixed, default: null },
+    vendorAppAssignmentStatus: {
+      type: String,
+      default: 'None',
+      enum: ['None', 'Dispatched to App', 'Awaiting Driver Allocation', 'Allocated by Vendor', 'Rejected by Vendor']
+    },
+    makTaxiDispatchStatus: {
+      type: String,
+      default: 'none',
+      enum: ['none', 'pending', 'sent', 'delivered', 'failed']
+    },
+    makTaxiDispatchedAt: { type: Date, default: null },
+    makTaxiAllocatedAt: { type: Date, default: null },
+    makTaxiWebhookPayload: { type: mongoose.Schema.Types.Mixed, default: null },
+    makTaxiWebhookResponse: { type: mongoose.Schema.Types.Mixed, default: null },
     driverAssignmentStatus: {
       type: String,
       default: 'Unassigned',
-      enum: ['Unassigned', 'Pending', 'Assigned', 'Accepted', 'Declined', 'Rejected', 'Reassignment Required', 'Completed']
+      enum: ['Unassigned', 'Pending', 'Assigned', 'Awaiting Vendor Allocation', 'Allocated by Vendor', 'Accepted', 'Declined', 'Rejected', 'Reassignment Required', 'Completed']
     },
     tripStatus: {
       type: String,
       default: 'Upcoming',
-      enum: ['Upcoming', 'Draft', 'Confirmed', 'Dispatched', 'Driver Assigned', 'Awaiting Driver Acceptance', 'Driver Accepted', 'Arrived at Pickup', 'Trip Started', 'In Progress', 'In Transit', 'Driver Declined', 'Trip Completed', 'Completed', 'Cancelled']
+      enum: ['Upcoming', 'Draft', 'Confirmed', 'Dispatched', 'Dispatched to Vendor', 'Driver Assigned', 'Awaiting Driver Acceptance', 'Driver Accepted', 'Arrived at Pickup', 'Trip Started', 'In Progress', 'In Transit', 'Driver Declined', 'Trip Completed', 'Completed', 'Cancelled']
     },
     startOdometer: { type: Number, default: 0 },
     endOdometer: { type: Number, default: 0 },
